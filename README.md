@@ -1,157 +1,170 @@
 # NodeCrypt
 
-🌐 **[English README](README_EN.md)**
+🌐 **[中文版 README](README_ZH.md)**
 
-## 🚀 部署说明
+## 🚀 Deployment Instructions
 
-### 一键部署到 Cloudflare Workers
+### Method 1: One-Click Deploy to Cloudflare Workers
 
-点击下方按钮即可一键部署到 Cloudflare Workers：
-[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button?projectName=NodeCrypt)](https://deploy.workers.cloudflare.com/?url=https://github.com/shuaiplus/nodecrypt)
+Click the button below for one-click deployment to Cloudflare Workers:
+[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button?projectName=NodeCrypt)](https://deploy.workers.cloudflare.com/?url=https://github.com/moshiax/NodeCrypt)
+> Note: This method creates a new project based on the main repository. Future updates to the main repository will not be automatically synchronized.
 
-- 构建命令：npm run build
-- 部署命令：npm run deploy
-- 
+### Method 2: Auto-Sync Fork and Deploy (Recommended for Long-term Maintenance)
+1. First, fork this project to your own GitHub account.
+2. Open the Cloudflare Workers console, select "Import from GitHub," and choose your forked repository for deployment.
+> This project has built-in auto-sync workflow. After forking, no action is required. Updates from the main repository will automatically sync to your fork, and Cloudflare will automatically redeploy without manual maintenance.
 
-## 📝 项目简介
+### Method 3: Docker One-Click Deployment (Recommended for Self-hosting)
 
-NodeCrypt 是一个真正的端到端加密聊天系统，实现完全的零知识架构。整个系统设计确保服务器、网络中间人、甚至系统管理员都无法获取任何明文消息内容。所有加密和解密操作都在客户端本地进行，服务器仅作为加密数据的盲中继。
+```bash
+docker run -d --name nodecrypt -p 80:80 ghcr.io/moshiax/nodecrypt
+```
 
-### 系统架构
-- **前端**：ES6+ 模块化 JavaScript，无框架依赖
-- **后端**：Cloudflare Workers + Durable Objects
-- **通信**：WebSocket 实时双向通信
-- **构建**：Vite 现代化构建工具
+Access http://localhost:80
 
-## 🔐 零知识架构设计
+### Method 4: Local Development Deployment
+After cloning the project and installing dependencies, use `npm run dev` to start the development server.
+Use `npm run deploy` to deploy to Cloudflare Workers.
 
-### 核心原则
-- **服务器盲转**：服务器永远无法解密消息内容，仅负责加密数据中转
-- **无数据库存储**：系统不使用任何持久化存储，所有数据仅在内存中临时存在
-- **端到端加密**：消息从发送方到接收方全程加密，中间任何节点都无法解密
-- **前向安全性**：即使密钥泄露，也无法解密历史消息，因为根本就没有历史消息
-- **匿名通信**：用户无需注册真实身份，支持临时匿名聊天
-- **多样体验**：和批量发送图片和文件，可选择主题和语言。
+## 📝 Project Introduction
 
-### 隐私保护机制
+NodeCrypt is a truly end-to-end encrypted chat system that implements a complete zero-knowledge architecture. The entire system design ensures that servers, network intermediaries, and even system administrators cannot access any plaintext message content. All encryption and decryption operations are performed locally on the client side, with the server serving only as a blind relay for encrypted data.
 
-- **实时成员提醒**：房间在线列表完全透明，内任何人加入或离开都会实时通知所有成员，
-- **无历史消息**：新加入的用户无法看到任何历史聊天记录
-- **私聊加密**：点击用户头像可发起端到端加密的私密对话，房间内其他成员完全无法看到私聊内容
+### System Architecture
+- **Frontend**: ES6+ modular JavaScript, no framework dependencies
+- **Backend**: Cloudflare Workers + Durable Objects
+- **Communication**: Real-time bidirectional WebSocket communication
+- **Build**: Vite modern build tool
 
-### 房间密码机制
+## 🔐 Zero-Knowledge Architecture Design
 
-房间密码作为**密钥派生因子**参与端到端加密：`最终共享密钥 = ECDH_共享密钥 XOR SHA256(房间密码)`
+### Core Principles
+- **Server Blind Relay**: The server can never decrypt message content, only responsible for encrypted data relay
+- **No Database Storage**: The system does not use any persistent storage; all data exists only temporarily in memory
+- **End-to-End Encryption**: Messages are encrypted from sender to receiver throughout the entire process; no intermediate node can decrypt them
+- **Forward Secrecy**: Even if keys are compromised, historical messages cannot be decrypted because there are no historical messages at all
+- **Anonymous Communication**: Users do not need to register real identities; supports temporary anonymous chat
+- **Rich Experience**: Support for sending images and files, with optional themes and languages
 
-- **密码错误隔离**：不同密码的房间无法解密彼此的消息
-- **服务器盲区**：服务器永远无法获知房间密码
+### Privacy Protection Mechanisms
 
-### 三层安全体系
+- **Real-time Member Notifications**: The room online list is completely transparent; any member joining or leaving will notify all members in real-time
+- **No Historical Messages**: Newly joined users cannot see any historical chat records
+- **Private Chat Encryption**: Clicking on a user's avatar can initiate end-to-end encrypted private conversations that are completely invisible to other room members
 
-#### 第一层：RSA-2048 服务器身份验证
-- 服务器启动时生成临时 RSA-2048 密钥对，每24小时自动轮换
-- 客户端连接时验证服务器公钥，防止中间人攻击
-- 私钥仅在服务器内存中存在，从不持久化存储
+### Room Password Mechanism
 
-#### 第二层：ECDH-P384 密钥协商
-- 每个客户端生成独立的椭圆曲线密钥对（P-384曲线）
-- 通过椭圆曲线 Diffie-Hellman 密钥交换协议建立共享密钥
-- 每个客户端与服务器之间拥有独立的加密通道
+Room passwords serve as **key derivation factors** in end-to-end encryption: `Final Shared Key = ECDH_Shared_Key XOR SHA256(Room Password)`
 
-#### 第三层：混合对称加密
-- **服务器通信**：使用 AES-256-CBC 加密客户端与服务器间的控制消息
-- **客户端通信**：使用 ChaCha20 加密客户端之间的实际聊天内容
-- 每条消息使用独立的初始化向量（IV）和随机数（Nonce）
+- **Password Error Isolation**: Rooms with different passwords cannot decrypt each other's messages
+- **Server Blind Spot**: The server can never know the room password
 
-## 🔄 完整加密流程详解
+### Three-Layer Security System
+
+#### Layer 1: RSA-2048 Server Identity Authentication
+- Server generates temporary RSA-2048 key pairs on startup, automatically rotated every 24 hours
+- Client verifies server public key on connection to prevent man-in-the-middle attacks
+- Private keys exist only in server memory and are never persistently stored
+
+#### Layer 2: ECDH-P384 Key Agreement
+- Each client generates independent elliptic curve key pairs (P-384 curve)
+- Establishes shared keys through Elliptic Curve Diffie-Hellman key exchange protocol
+- Each client has an independent encrypted channel with the server
+
+#### Layer 3: Hybrid Symmetric Encryption
+- **Server Communication**: Uses AES-256-CBC to encrypt control messages between client and server
+- **Client Communication**: Uses ChaCha20 to encrypt actual chat content between clients
+- Each message uses independent initialization vectors (IV) and nonces
+
+## 🔄 Complete Encryption Process
 
 ```mermaid
 sequenceDiagram
-    participant C as 客户端
-    participant S as 服务器
-    participant O as 其他客户端
+    participant C as Client
+    participant S as Server
+    participant O as Other Clients
 
-    Note over C,S: 阶段1: 服务器身份验证 (RSA-2048)
-    C->>S: WebSocket连接
-    S->>C: RSA-2048公钥
+    Note over C,S: Phase 1: Server Identity Authentication (RSA-2048)
+    C->>S: WebSocket Connection
+    S->>C: RSA-2048 Public Key
     
-    Note over C,S: 阶段2: 客户端-服务器密钥交换 (P-384 ECDH)
-    C->>S: P-384 ECDH公钥
-    S->>C: P-384公钥 + RSA签名
-    Note over C: 验证RSA签名并派生AES-256密钥
-    Note over S: 从P-384 ECDH派生AES-256密钥
+    Note over C,S: Phase 2: Client-Server Key Exchange (P-384 ECDH)
+    C->>S: P-384 ECDH Public Key
+    S->>C: P-384 Public Key + RSA Signature
+    Note over C: Verify RSA signature and derive AES-256 key
+    Note over S: Derive AES-256 key from P-384 ECDH
     
-    Note over C,S: 阶段3: 房间认证
-    C->>S: 加入请求 (房间哈希，AES-256加密)
-    Note over S: 将客户端添加到房间/频道
-    S->>C: 成员列表 (其他客户端ID，加密)
-      Note over C,O: 阶段4: 客户端间密钥交换 (Curve25519)
-    Note over C: 为每个成员生成Curve25519密钥对
-    C->>S: Curve25519公钥包 (AES-256加密)
-    S->>O: 转发客户端C的公钥
-    O->>S: 返回其他客户端的Curve25519公钥
-    S->>C: 转发其他客户端的公钥
+    Note over C,S: Phase 3: Room Authentication
+    C->>S: Join Request (Room Hash, AES-256 encrypted)
+    Note over S: Add client to room/channel
+    S->>C: Member List (Other client IDs, encrypted)
     
-    Note over C,O: 阶段5: 密码增强密钥派生
-    Note over C: 客户端密钥 = ECDH_Curve25519(自己私钥, 对方公钥) XOR SHA256(密码)
-    Note over O: 客户端密钥 = ECDH_Curve25519(自己私钥, 对方公钥) XOR SHA256(密码)
+    Note over C,O: Phase 4: Inter-Client Key Exchange (Curve25519)
+    Note over C: Generate Curve25519 key pair for each member
+    C->>S: Curve25519 Public Key Bundle (AES-256 encrypted)
+    S->>O: Forward Client C's public key
+    O->>S: Return other clients' Curve25519 public keys
+    S->>C: Forward other clients' public keys
     
-    Note over C,O: 阶段6: 身份验证
-    C->>S: 用户名 (用客户端密钥ChaCha20加密)
-    S->>O: 转发加密用户名
-    O->>S: 用户名 (用客户端密钥ChaCha20加密)
-    S->>C: 转发加密用户名
-    Note over C,O: 双方客户端现在验证彼此身份    Note over C,O: 阶段7: 安全消息传输 (双层加密)
-    Note over C: 1. ChaCha20加密(消息内容)<br/>2. AES-256加密(传输层包装)
-    C->>S: 双层加密消息
-    Note over S: 解密AES-256传输层<br/>提取ChaCha20加密数据<br/>无法解密消息内容
-    S->>O: 转发ChaCha20加密数据
-    Note over O: 解密AES-256传输层<br/>ChaCha20解密获得消息内容
+    Note over C,O: Phase 5: Password-Enhanced Key Derivation
+    Note over C: Client Key = ECDH_Curve25519(own private key, other's public key) XOR SHA256(password)
+    Note over O: Client Key = ECDH_Curve25519(own private key, other's public key) XOR SHA256(password)
+    
+    Note over C,O: Phase 6: Identity Authentication
+    C->>S: Username (ChaCha20 encrypted with client key)
+    S->>O: Forward encrypted username
+    O->>S: Username (ChaCha20 encrypted with client key)
+    S->>C: Forward encrypted username
+    Note over C,O: Both clients now verify each other's identity
+    
+    Note over C,O: Phase 7: Secure Message Transmission (Double-layer encryption)
+    Note over C: 1. ChaCha20 encrypt(message content)<br/>2. AES-256 encrypt(transport layer wrapper)
+    C->>S: Double-layer encrypted message
+    Note over S: Decrypt AES-256 transport layer<br/>Extract ChaCha20 encrypted data<br/>Cannot decrypt message content
+    S->>O: Forward ChaCha20 encrypted data
+    Note over O: Decrypt AES-256 transport layer<br/>ChaCha20 decrypt to get message content
 ```
 
+## 🛠️ Technical Implementation
 
-## 🛠️ 技术实现
+- **Web Cryptography API**: Native browser encryption implementation with hardware acceleration
+- **elliptic.js**: Elliptic curve cryptography library implementing Curve25519 and P-384
+- **aes-js**: Pure JavaScript AES implementation supporting multiple modes
+- **js-chacha20**: JavaScript implementation of ChaCha20 stream cipher
+- **js-sha256**: SHA-256 hash algorithm implementation
 
-- **Web Cryptography API**：浏览器原生加密实现，提供硬件加速
-- **elliptic.js**：椭圆曲线密码学库，实现 Curve25519 和 P-384
-- **aes-js**：纯 JavaScript AES 实现，支持多种模式
-- **js-chacha20**：ChaCha20 流加密算法的 JavaScript 实现
-- **js-sha256**：SHA-256 哈希算法实现
+## 🔬 Security Verification
 
-## 🔬 安全验证
+### Encryption Process Verification
+Users can observe the complete encryption and decryption process through browser developer tools to verify that messages are indeed encrypted during transmission.
 
-### 加密过程验证
-用户可通过浏览器开发者工具观察完整的加密解密过程，验证消息在传输过程中确实处于加密状态。
+### Network Traffic Analysis
+Network packet capture tools can verify that all WebSocket transmitted data is unreadable encrypted content.
 
-### 网络流量分析
-使用网络抓包工具可以验证所有 WebSocket 传输的数据都是不可读的加密内容。
+### Code Security Audit
+All encryption-related code is completely open source, using standard cryptographic algorithms. Security researchers are welcome to conduct independent audits.
 
-### 代码安全审计
-所有加密相关代码完全开源，使用标准密码学算法，欢迎安全研究者进行独立审计。
+## ⚠️ Security Recommendations
 
-## ⚠️ 安全建议
+- **Use Strong Room Passwords**: Room passwords directly affect end-to-end encryption strength; complex passwords are recommended
+- **Password Confidentiality**: If a room password is leaked, all communication content in that room may be decrypted
+- **Use Latest Modern Browsers**: Ensure security and performance of cryptographic APIs
 
-- **使用强房间密码**：房间密码直接影响端到端加密强度，建议使用复杂密码
-- **密码保密性**：房间密码一旦泄露，该房间所有通信内容都可能被解密
-- **使用最新版本的现代浏览器**：确保密码学API的安全性和性能
+## 🤝 Security Contributions
 
-## 🤝 安全贡献
+Security researchers are welcome to report vulnerabilities and conduct security audits. Critical security issues will be fixed within 24 hours.
 
-欢迎安全研究者报告漏洞和进行安全审计。严重安全问题将在24小时内修复。
+## 📄 Open Source License
 
-## 📄 开源协议
+This project uses the ISC open source license.
 
-本项目采用 ISC 开源协议。
+## ⚠️ Disclaimer
 
-## ⚠️ 免责声明
-
-本项目仅供学习和技术研究使用，不得用于任何违法犯罪活动。使用者应遵守所在国家和地区的相关法律法规。项目作者不承担因使用本软件而产生的任何法律责任。请在合法合规的前提下使用本项目。
+This project is for educational and technical research purposes only and must not be used for any illegal or criminal activities. Users should comply with the relevant laws and regulations of their country and region. The project author assumes no legal responsibility for any consequences arising from the use of this software. Please use this project legally and compliantly.
 
 ---
-## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=shuaiplus/NodeCrypt&type=Timeline)](https://www.star-history.com/#shuaiplus/NodeCrypt&Timeline)
+**NodeCrypt** - True End-to-End Encrypted Communication 🔐
 
-**NodeCrypt** - 真正的端到端加密通信 🔐
-
-*"在数字时代，加密是保护隐私的最后一道防线"*
+*"In the digital age, encryption is the last line of defense for privacy"*

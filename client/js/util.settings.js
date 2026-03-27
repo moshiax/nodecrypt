@@ -23,7 +23,8 @@ import { t, setLanguage, getCurrentLanguage, initI18n } from './util.i18n.js';
 const DEFAULT_SETTINGS = {
 	notify: false,
 	sound: false,
-	theme: 'theme1'
+	theme: 'theme1',
+	uiTheme: 'light'
 	// 注意：我们不设置默认语言，让系统自动检测浏览器语言
 	// Note: We don't set a default language, let the system auto-detect browser language
 };
@@ -50,14 +51,21 @@ function saveSettings(settings) {
 		notify,
 		sound,
 		theme,
-		language
+		language,
+		uiTheme
 	} = settings;
 	localStorage.setItem('settings', JSON.stringify({
 		notify,
 		sound,
 		theme,
-		language
+		language,
+		uiTheme
 	}))
+}
+
+function applyUITheme(uiTheme) {
+	const theme = uiTheme || 'light';
+	document.body.setAttribute('data-ui-theme', theme);
 }
 
 // Apply settings to the document
@@ -66,6 +74,7 @@ function applySettings(settings) {
 	// Initialize i18n with current language setting
 	// 根据当前语言设置初始化国际化
 	initI18n(settings);
+	applyUITheme(settings.uiTheme);
 }
 
 // Ask for browser notification permission
@@ -132,6 +141,17 @@ function setupSettingsPanel() {
 		
 		<div class="settings-section">
 			<div class="settings-section-title">${t('settings.theme', 'Theme Settings')}</div>
+			<div class="settings-item">
+				<div class="settings-item-label">
+					<div>UI Theme</div>
+				</div>
+					<div class="language-selector">
+						<select id="settings-ui-theme" class="language-select">
+							<option value="amoled" ${settings.uiTheme === 'amoled' ? 'selected' : ''}>AMOLED</option>
+							<option value="light" ${settings.uiTheme === 'light' ? 'selected' : ''}>Light</option>
+						</select>
+					</div>
+				</div>
 			<div class="theme-selector" id="theme-selector">
 				${THEMES.map(theme => `
 					<div class="theme-item ${settings.theme === theme.id ? 'active' : ''}" data-theme-id="${theme.id}" style="background: ${theme.background}; background-size: cover; background-position: center;">
@@ -142,6 +162,7 @@ function setupSettingsPanel() {
 	`;	const notifyCheckbox = $('#settings-notify', settingsContent);
 	const soundCheckbox = $('#settings-sound', settingsContent);
 	const languageSelect = $('#settings-language', settingsContent);
+	const uiThemeSelect = $('#settings-ui-theme', settingsContent);
 	
 	// Language select event handler
 	// 语言选择事件处理
@@ -165,6 +186,14 @@ function setupSettingsPanel() {
 		}, 100);
 	});
 	
+	if (uiThemeSelect) {
+		on(uiThemeSelect, 'change', e => {
+			settings.uiTheme = e.target.value;
+			applyUITheme(settings.uiTheme);
+			saveSettings(settings);
+		});
+	}
+
 	on(notifyCheckbox, 'change', e => {
 		const checked = e.target.checked;
 		if (checked) {

@@ -1861,3 +1861,123 @@ flex-direction: column;
 h2{
 	margin: 0%;
 }
+body[data-ui-theme="amoled"] {
+	--ui-bg: #000;
+	--ui-surface: #0b0b0b;
+	--ui-surface-2: #131313;
+	--ui-text: #fff;
+	--ui-border: #1f1f1f;
+	--ui-accent: #ff8c00;
+	--surface-color: #0b0b0b;
+}
+
+
+body[data-ui-theme="amoled"] .main::before {
+	background: none !important;
+	opacity: 0 !important;
+}
+
+body[data-ui-theme="amoled"] .container,
+body[data-ui-theme="amoled"] .sidebar,
+body[data-ui-theme="amoled"] .sidebar-user,
+body[data-ui-theme="amoled"] .settings-sidebar,
+body[data-ui-theme="amoled"] .settings-header,
+body[data-ui-theme="amoled"] .settings-content,
+body[data-ui-theme="amoled"] .main,
+body[data-ui-theme="amoled"] .main-header,
+body[data-ui-theme="amoled"] .pinned,
+body[data-ui-theme="amoled"] .rooms,
+body[data-ui-theme="amoled"] .room,
+body[data-ui-theme="amoled"] .rightbar,
+body[data-ui-theme="amoled"] .rightbar-header,
+body[data-ui-theme="amoled"] .rightbar-tabs,
+body[data-ui-theme="amoled"] .members,
+body[data-ui-theme="amoled"] .member,
+body[data-ui-theme="amoled"] .sidebar .join-room,
+body[data-ui-theme="amoled"] .sidebar .join-room input,
+body[data-ui-theme="amoled"] .language-select,
+body[data-ui-theme="amoled"] .language-select option,
+body[data-ui-theme="amoled"] .message-input,
+body[data-ui-theme="amoled"] .message-input-container,
+body[data-ui-theme="amoled"] .chat-input-wrapper::before,
+body[data-ui-theme="amoled"] .bubble.other,
+body[data-ui-theme="amoled"] .more-menu,
+body[data-ui-theme="amoled"] .modal-content,
+body[data-ui-theme="amoled"] .theme-selector {
+	background: var(--ui-bg) !important;
+	color: var(--ui-text) !important;
+	border-color: var(--ui-border) !important;
+	box-shadow: none !important;
+}
+
+body[data-ui-theme="amoled"] .room.active {
+	background: var(--ui-accent) !important;
+	color: #fff !important;
+}
+
+body[data-ui-theme="amoled"] .room.active .title {
+	color: #fff !important;
+}
+
+body[data-ui-theme="amoled"] .room:hover:not(.active),
+body[data-ui-theme="amoled"] .member:hover,
+body[data-ui-theme="amoled"] .settings-btn:hover,
+body[data-ui-theme="amoled"] .settings-back-btn:hover,
+body[data-ui-theme="amoled"] .btn-icon.rp.btn-menu-toggle:hover {
+	background: var(--ui-surface-2) !important;
+}
+
+body[data-ui-theme="amoled"] .bubble,
+body[data-ui-theme="amoled"] .bubble .bubble-meta,
+body[data-ui-theme="amoled"] .more-menu-item,
+body[data-ui-theme="amoled"] .room .title,
+body[data-ui-theme="amoled"] .main-header .group-title,
+body[data-ui-theme="amoled"] .member .member-name,
+body[data-ui-theme="amoled"] .rightbar .group-info .title,
+body[data-ui-theme="amoled"] .settings-item,
+body[data-ui-theme="amoled"] .settings-section-title,
+body[data-ui-theme="amoled"] .group-desc,
+body[data-ui-theme="amoled"] .member-tip {
+	color: #fff !important;
+}
+
+body[data-ui-theme="amoled"] .bubble.me {
+	background: #1a1a1a !important;
+	color: #fff !important;
+}
+
+body[data-ui-theme="amoled"] .bubble.system {
+	background: #111 !important;
+	color: #fff !important;
+	border: 1px solid var(--ui-border);
+	align-self: center;
+}
+
+body[data-ui-theme="amoled"] .settings-title,
+body[data-ui-theme="amoled"] .rightbar .tabs div,
+body[data-ui-theme="amoled"] .rightbar .tabs .active,
+body[data-ui-theme="amoled"] .bubble-other-name,
+body[data-ui-theme="amoled"] .btn-icon.toggle-emoticons,
+body[data-ui-theme="amoled"] .member .member-status,
+body[data-ui-theme="amoled"] .sidebar .join-room button,
+body[data-ui-theme="amoled"] .send-btn,
+body[data-ui-theme="amoled"] .file-download-btn,
+body[data-ui-theme="amoled"] .file-share-btn {
+	color: var(--ui-accent) !important;
+	border-color: var(--ui-accent) !important;
+}
+
+body[data-ui-theme="amoled"] .sidebar .join-room button,
+body[data-ui-theme="amoled"] .send-btn,
+body[data-ui-theme="amoled"] .file-download-btn,
+body[data-ui-theme="amoled"] .file-share-btn,
+body[data-ui-theme="amoled"] .progress-fill {
+	background: var(--ui-accent) !important;
+	color: #fff !important;
+}
+
+
+body[data-ui-theme="amoled"] .input-message-input,
+body[data-ui-theme="amoled"] .input-group input {
+	color: #fff !important;
+}

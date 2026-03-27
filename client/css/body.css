@@ -572,3 +572,32 @@ body {
   position: relative;
   z-index: 1;
 }
+body[data-ui-theme="amoled"] {
+	background: #000 !important;
+	color: #fff !important;
+}
+
+body[data-ui-theme="amoled"] .help-btn:hover {
+	background: #ff8c00 !important;
+	border-color: #ff8c00 !important;
+	color: #fff !important;
+}
+
+body[data-ui-theme="amoled"] .login-btn {
+	background: #ff8c00 !important;
+	color: #fff !important;
+}
+
+body[data-ui-theme="amoled"] .login-btn:hover,
+body[data-ui-theme="amoled"] .login-btn:focus {
+	background: #ff9f2a !important;
+}
+
+body[data-ui-theme="amoled"] .input-group input,
+body[data-ui-theme="amoled"] .flip-card-front,
+body[data-ui-theme="amoled"] .flip-card-back {
+	background: #0b0b0b !important;
+	color: #fff !important;
+	border-color: #1f1f1f !important;
+}
+
