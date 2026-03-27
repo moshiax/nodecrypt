@@ -41,7 +41,6 @@ export class ChatRoom {  constructor(state, env) {
 
   async initRSAKeyPair() {
     try {
-      console.log('Generating in-memory RSA keypair...');
       const keyPair = await crypto.subtle.generateKey(
         {
           name: 'RSASSA-PKCS1-v1_5',
@@ -429,7 +428,6 @@ export class ChatRoom {  constructor(state, env) {
       this.keyPair &&
       (Date.now() - this.keyPair.createdAt > 24 * 60 * 60 * 1000)
     ) {
-      console.log('No active clients. Rotating in-memory RSA keypair...');
       this.keyPair = null;
       await this.initRSAKeyPair();
     }

@@ -43,6 +43,7 @@ class NodeCrypt {
 		this.connection = null;
 		this.reconnect = null;
 		this.ping = null;
+		this.lastOutboundAt = 0;
 		this.channel = {};
 		this.setCredentials = this.setCredentials.bind(this);
 		this.connect = this.connect.bind(this);
@@ -96,6 +97,7 @@ class NodeCrypt {
 		this.serverKeys = null;
 		this.serverShared = null;
 		this.channel = {};
+		this.lastOutboundAt = 0;
 		try {
 			this.connection = new WebSocket(this.config.wsAddress);
 			this.connection.onopen = this.onOpen;
@@ -149,6 +151,7 @@ class NodeCrypt {
 		}
 		this.connection = null;
 		this.channel = {};
+		this.lastOutboundAt = 0;
 		return (true)
 	}
 
@@ -431,6 +434,13 @@ class NodeCrypt {
 		this.stopPing();
 		this.logEvent('startPing');
 		this.ping = setInterval(() => {
+			const now = Date.now();
+			if (!this.isOpen()) {
+				return
+			}
+			if (this.lastOutboundAt && (now - this.lastOutboundAt) < (this.config.pingInterval - 1000)) {
+				return
+			}
 			this.sendMessage('ping')
 		}, this.config.pingInterval)
 	}
@@ -466,6 +476,7 @@ class NodeCrypt {
 		try {
 			if (this.isOpen()) {
 				this.connection.send(message);
+				this.lastOutboundAt = Date.now();
 				return (true)
 			}
 		} catch (error) {
@@ -500,7 +511,8 @@ class NodeCrypt {
 					if (!this.isOpen() || payload.length === 0 || payload.length > (8 * 1024 * 1024)) {
 						return (false)
 					}
-					this.connection.send(payload)
+					this.connection.send(payload);
+					this.lastOutboundAt = Date.now();
 				}
 				return (true)
 			} catch (error) {
