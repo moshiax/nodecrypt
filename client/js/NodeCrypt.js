@@ -8,10 +8,6 @@ import {
 	ec as elliptic
 } from 'elliptic';
 import {
-	ModeOfOperation
-} from 'aes-js';
-import chacha from 'js-chacha20';
-import {
 	Buffer
 } from 'buffer';
 window.Buffer = Buffer;
@@ -36,7 +32,6 @@ class NodeCrypt {
 			onClientList: callbacks.onClientList || null,
 			onClientMessage: callbacks.onClientMessage || null,
 		};
-		this.SERVER_KEY_STORAGE = 'nodecrypt_server_key';
 		try {
 			this.clientEc = new elliptic('curve25519')
 		} catch (error) {
@@ -215,7 +210,7 @@ class NodeCrypt {
 							namedCurve: 'P-384'
 						}, true, [])
 					}, this.serverKeys.privateKey, 384)).slice(8, 40);
-					this.sendMessage(this.encryptServerMessage({
+					this.sendMessage(await this.encryptServerMessage({
 						a: 'j',
 						p: this.credentials.channel
 					}, this.serverShared));
@@ -232,7 +227,7 @@ class NodeCrypt {
 			}
 			return
 		}
-		const serverDecrypted = this.decryptServerMessage(event.data, this.serverShared);
+		const serverDecrypted = await this.decryptServerMessage(event.data, this.serverShared);
 		this.logEvent('onMessage-server-decrypted', serverDecrypted);
 		if (!this.isObject(serverDecrypted) || !this.isString(serverDecrypted.a)) {
 			return
@@ -256,7 +251,7 @@ class NodeCrypt {
 					}
 				}
 				if (Object.keys(payloads).length > 0) {
-					this.sendMessage(this.encryptServerMessage({
+					this.sendMessage(await this.encryptServerMessage({
 						a: 'w',
 						p: payloads,
 					}, this.serverShared))
@@ -293,16 +288,16 @@ class NodeCrypt {
 						keys: this.clientEc.genKeyPair(),
 						shared: null,
 					};
-					this.sendMessage(this.encryptServerMessage({
+					this.sendMessage(await this.encryptServerMessage({
 						a: 'c',
 						p: this.channel[serverDecrypted.c].keys.getPublic('hex'),
 						c: serverDecrypted.c
 					}, this.serverShared))
 				}
 				this.channel[serverDecrypted.c].shared = Buffer.from(this.xorHex(this.channel[serverDecrypted.c].keys.derive(this.clientEc.keyFromPublic(serverDecrypted.p, 'hex').getPublic()).toString('hex').padEnd(64, '8').substr(0, 64), this.credentials.password), 'hex');
-				this.sendMessage(this.encryptServerMessage({
+				this.sendMessage(await this.encryptServerMessage({
 					a: 'c',
-					p: this.encryptClientMessage({
+					p: await this.encryptClientMessage({
 						a: 'u',
 						p: this.credentials.username
 					}, this.channel[serverDecrypted.c].shared),
@@ -314,7 +309,7 @@ class NodeCrypt {
 			return
 		}
 		if (serverDecrypted.a === 'c' && this.channel[serverDecrypted.c] && this.channel[serverDecrypted.c].shared) {
-			const clientDecrypted = this.decryptClientMessage(serverDecrypted.p, this.channel[serverDecrypted.c].shared);
+			const clientDecrypted = await this.decryptClientMessage(serverDecrypted.p, this.channel[serverDecrypted.c].shared);
 			this.logEvent('onMessage-client-decrypted', clientDecrypted);
 			if (!this.isObject(clientDecrypted) || !this.isString(clientDecrypted.a)) {
 				return
@@ -481,13 +476,13 @@ class NodeCrypt {
 
 	// Send a message to all channels
 	// 向所有频道发送消息
-	sendChannelMessage(type, data) {
+	async sendChannelMessage(type, data) {
 		if (this.serverShared) {
 			try {
 				let payloads = {};
 				for (const clientId in this.channel) {
 					if (this.channel[clientId].shared && this.channel[clientId].username) {
-						payloads[clientId] = this.encryptClientMessage({
+						payloads[clientId] = await this.encryptClientMessage({
 							a: 'm',
 							t: type,
 							d: data
@@ -498,7 +493,7 @@ class NodeCrypt {
 					}
 				}
 				if (Object.keys(payloads).length > 0) {
-					const payload = this.encryptServerMessage({
+					const payload = await this.encryptServerMessage({
 						a: 'w',
 						p: payloads,
 					}, this.serverShared);
@@ -517,16 +512,19 @@ class NodeCrypt {
 
 	// Encrypt a message for the server
 	// 加密发送给服务器的消息
-	encryptServerMessage(message, key) {
+	async encryptServerMessage(message, key) {
 		let encrypted = '';
 		try {
-			message = Buffer.from(JSON.stringify(message), 'utf8');
-			if ((message.length % 16) !== 0) {
-				message = Buffer.from([...message, ...Buffer.alloc(16 - (message.length % 16))])
-			}
-			const iv = Buffer.from(crypto.getRandomValues(new Uint8Array(16)));
-			const cipher = new ModeOfOperation.cbc(key, iv);
-			encrypted = iv.toString('base64') + '|' + Buffer.from(cipher.encrypt(message)).toString('base64')
+			const iv = crypto.getRandomValues(new Uint8Array(12));
+			const plainBytes = new TextEncoder().encode(JSON.stringify(message));
+			const cryptoKey = await crypto.subtle.importKey('raw', new Uint8Array(key), { name: 'AES-GCM' }, false, ['encrypt']);
+			const ciphertext = await crypto.subtle.encrypt({
+				name: 'AES-GCM',
+				iv: iv,
+				additionalData: new TextEncoder().encode('nodecrypt-server-v1'),
+				tagLength: 128
+			}, cryptoKey, plainBytes);
+			encrypted = Buffer.from(iv).toString('base64') + '|' + Buffer.from(new Uint8Array(ciphertext)).toString('base64')
 		} catch (error) {
 			this.logEvent('encryptServerMessage', error, 'error')
 		}
@@ -535,12 +533,23 @@ class NodeCrypt {
 
 	// Decrypt a message from the server
 	// 解密来自服务器的消息
-	decryptServerMessage(message, key) {
+	async decryptServerMessage(message, key) {
 		let decrypted = {};
 		try {
 			const parts = message.split('|');
-			const decipher = new ModeOfOperation.cbc(key, Buffer.from(parts[0], 'base64'));
-			decrypted = JSON.parse(Buffer.from(decipher.decrypt(Buffer.from(parts[1], 'base64'))).toString('utf8').replace(/\0+$/, ''))
+			if (parts.length !== 2) {
+				return decrypted
+			}
+			const iv = Buffer.from(parts[0], 'base64');
+			const cipherBytes = Buffer.from(parts[1], 'base64');
+			const cryptoKey = await crypto.subtle.importKey('raw', new Uint8Array(key), { name: 'AES-GCM' }, false, ['decrypt']);
+			const plainBuffer = await crypto.subtle.decrypt({
+				name: 'AES-GCM',
+				iv: iv,
+				additionalData: new TextEncoder().encode('nodecrypt-server-v1'),
+				tagLength: 128
+			}, cryptoKey, cipherBytes);
+			decrypted = JSON.parse(new TextDecoder().decode(plainBuffer))
 		} catch (error) {
 			this.logEvent('decryptServerMessage', error, 'error')
 		}
@@ -549,17 +558,19 @@ class NodeCrypt {
 
 	// Encrypt a message for a client
 	// 加密发送给客户端的消息
-	encryptClientMessage(message, key) {
+	async encryptClientMessage(message, key) {
 		let encrypted = '';
 		try {
-			message = Buffer.from(JSON.stringify(message), 'utf8');
-			if ((message.length % 16) !== 0) {
-				message = Buffer.from([...message, ...Buffer.alloc(16 - (message.length % 16))])
-			}
-			const iv = Buffer.from(crypto.getRandomValues(new Uint8Array(12)));
-			const counter = Buffer.from(crypto.getRandomValues(new Uint8Array(4)));
-			const cipher = new chacha(key, iv, counter.reduce((a, b) => a * b));
-			encrypted = iv.toString('base64') + '|' + counter.toString('base64') + '|' + Buffer.from(cipher.encrypt(message)).toString('base64')
+			const iv = crypto.getRandomValues(new Uint8Array(12));
+			const plainBytes = new TextEncoder().encode(JSON.stringify(message));
+			const cryptoKey = await crypto.subtle.importKey('raw', new Uint8Array(key), { name: 'AES-GCM' }, false, ['encrypt']);
+			const ciphertext = await crypto.subtle.encrypt({
+				name: 'AES-GCM',
+				iv: iv,
+				additionalData: new TextEncoder().encode('nodecrypt-client-v1'),
+				tagLength: 128
+			}, cryptoKey, plainBytes);
+			encrypted = Buffer.from(iv).toString('base64') + '|' + Buffer.from(new Uint8Array(ciphertext)).toString('base64')
 		} catch (error) {
 			this.logEvent('encryptClientMessage', error, 'error')
 		}
@@ -568,12 +579,23 @@ class NodeCrypt {
 
 	// Decrypt a message from a client
 	// 解密来自客户端的消息
-	decryptClientMessage(message, key) {
+	async decryptClientMessage(message, key) {
 		let decrypted = {};
 		try {
 			const parts = message.split('|');
-			const decipher = new chacha(key, Buffer.from(parts[0], 'base64'), Buffer.from(parts[1], 'base64').reduce((a, b) => a * b));
-			decrypted = JSON.parse(Buffer.from(decipher.decrypt(Buffer.from(parts[2], 'base64'))).toString('utf8').replace(/\0+$/, ''))
+			if (parts.length !== 2) {
+				return decrypted
+			}
+			const iv = Buffer.from(parts[0], 'base64');
+			const cipherBytes = Buffer.from(parts[1], 'base64');
+			const cryptoKey = await crypto.subtle.importKey('raw', new Uint8Array(key), { name: 'AES-GCM' }, false, ['decrypt']);
+			const plainBuffer = await crypto.subtle.decrypt({
+				name: 'AES-GCM',
+				iv: iv,
+				additionalData: new TextEncoder().encode('nodecrypt-client-v1'),
+				tagLength: 128
+			}, cryptoKey, cipherBytes);
+			decrypted = JSON.parse(new TextDecoder().decode(plainBuffer))
 		} catch (error) {
 			this.logEvent('decryptClientMessage', error, 'error')
 		}
@@ -613,8 +635,8 @@ class NodeCrypt {
 	// 处理服务器公钥
 	async handleServerKey(serverKey) {
 		this.logEvent('handleServerKey', 'Received server key');
-		localStorage.removeItem(this.SERVER_KEY_STORAGE);
-		localStorage.setItem(this.SERVER_KEY_STORAGE, serverKey);
+		// Server RSA key is ephemeral (in-memory on server side),
+		// so we bind it per-session and do not persist pinning across sessions.
 		this.config.rsaPublic = serverKey;
 		return true
 	}

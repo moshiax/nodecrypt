@@ -498,16 +498,12 @@ const encryptMessage = (message, key) => {
 	try {
 
 		const messageBuffer = Buffer.from(JSON.stringify(message), 'utf8');
-
-		const paddedBuffer = (messageBuffer.length % 16) !== 0 ?
-			Buffer.concat([messageBuffer, Buffer.alloc(16 - (messageBuffer.length % 16))]) :
-			messageBuffer;
-
-		const iv = crypto.randomBytes(16);
-		const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
-		cipher.setAutoPadding(false);
-
-		encrypted = iv.toString('base64') + '|' + cipher.update(paddedBuffer, '', 'base64') + cipher.final('base64');
+		const iv = crypto.randomBytes(12);
+		const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+		cipher.setAAD(Buffer.from('nodecrypt-server-v1', 'utf8'));
+		const ciphertext = Buffer.concat([cipher.update(messageBuffer), cipher.final()]);
+		const authTag = cipher.getAuthTag();
+		encrypted = iv.toString('base64') + '|' + Buffer.concat([ciphertext, authTag]).toString('base64');
 
 	} catch (error) {
 		logEvent('encryptMessage', error, 'error');
@@ -525,16 +521,21 @@ const decryptMessage = (message, key) => {
 	try {
 
 		const parts = message.split('|');
-		const decipher = crypto.createDecipheriv(
-			'aes-256-cbc',
-			key,
-			Buffer.from(parts[0], 'base64')
-		);
-
-		decipher.setAutoPadding(false);
-
-		const decryptedText = decipher.update(parts[1], 'base64', 'utf8') + decipher.final('utf8');
-		decrypted = JSON.parse(decryptedText.replace(/\0+$/, ''));
+		if (parts.length !== 2) {
+			return decrypted;
+		}
+		const iv = Buffer.from(parts[0], 'base64');
+		const encryptedBytes = Buffer.from(parts[1], 'base64');
+		if (encryptedBytes.length <= 16) {
+			return decrypted;
+		}
+		const ciphertext = encryptedBytes.subarray(0, encryptedBytes.length - 16);
+		const authTag = encryptedBytes.subarray(encryptedBytes.length - 16);
+		const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+		decipher.setAAD(Buffer.from('nodecrypt-server-v1', 'utf8'));
+		decipher.setAuthTag(authTag);
+		const decryptedBuffer = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+		decrypted = JSON.parse(decryptedBuffer.toString('utf8'));
 
 	} catch (error) {
 		logEvent('decryptMessage', error, 'error');
