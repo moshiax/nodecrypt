@@ -2,7 +2,7 @@
 
 🌐 **[中文版 README](README_ZH.md)**
 
-Relevant for commit [a2b5d364dcca99cd46b499caa86113055bf018fb](https://github.com/moshiax/nodecrypt/tree/a2b5d364dcca99cd46b499caa86113055bf018fb). See the [diff](https://github.com/moshiax/nodecrypt/compare/a2b5d364dcca99cd46b499caa86113055bf018fb...main) between this commit and the latest commit for changes.
+Relevant for commit [826c5465e014e024d7ac146a9c659d5c7d7da2f3](https://github.com/moshiax/nodecrypt/tree/826c5465e014e024d7ac146a9c659d5c7d7da2f3). See the [diff](https://github.com/moshiax/nodecrypt/compare/826c5465e014e024d7ac146a9c659d5c7d7da2f3...main) between this commit and the latest commit for changes.
 
 ## 🚀 Deployment Instructions
 
@@ -43,11 +43,11 @@ NodeCrypt is a truly end-to-end encrypted chat system that implements a complete
 
 ### Core Principles
 - **Server Blind Relay**: The server can never decrypt message content, only responsible for encrypted data relay
-- **No Database Storage**: The system does not use any persistent storage; all data exists only temporarily in memory
+- **No Chat History Storage**: The system does not persist chat plaintext/history; message data exists only in runtime memory
 - **End-to-End Encryption**: Messages are encrypted from sender to receiver throughout the entire process; no intermediate node can decrypt them
 - **Forward Secrecy**: Even if keys are compromised, historical messages cannot be decrypted because there are no historical messages at all
 - **Anonymous Communication**: Users do not need to register real identities; supports temporary anonymous chat
-- **Rich Experience**: Support for sending images and files, with optional themes and languages
+- **Rich Experience**: Support for sending images/files, private chat by clicking user avatar, selectable UI themes and languages
 
 ### Privacy Protection Mechanisms
 
@@ -64,20 +64,21 @@ Room passwords serve as **key derivation factors** in end-to-end encryption: `Fi
 
 ### Three-Layer Security System
 
-#### Layer 1: RSA-2048 Server Identity Authentication
-- Server generates temporary RSA-2048 key pairs on startup, automatically rotated every 24 hours
-- Client verifies server public key on connection to prevent man-in-the-middle attacks
-- Private keys exist only in server memory and are never persistently stored
+#### Layer 1: TOFU + Master-Key-Based Server Identity Authentication
+- Server maintains a long-term RSA-2048 **master key** (Durable Object storage)
+- On connect, client receives server master key fingerprint, applies TOFU (Trust On First Use), and pins it per domain in browser localStorage
+- Session RSA public key must be signed by the trusted master key, otherwise connection is blocked
+- Optional `mk` URL parameter allows out-of-band fingerprint verification in shared invite links
 
 #### Layer 2: ECDH-P384 Key Agreement
 - Each client generates independent elliptic curve key pairs (P-384 curve)
 - Establishes shared keys through Elliptic Curve Diffie-Hellman key exchange protocol
 - Each client has an independent encrypted channel with the server
 
-#### Layer 3: Hybrid Symmetric Encryption
-- **Server Communication**: Uses AES-256-CBC to encrypt control messages between client and server
-- **Client Communication**: Uses ChaCha20 to encrypt actual chat content between clients
-- Each message uses independent initialization vectors (IV) and nonces
+#### Layer 3: Symmetric Encryption (AES-GCM)
+- **Server Communication**: Uses AES-GCM with per-message nonce/IV and additional authenticated data (AAD)
+- **Client Communication**: Uses AES-GCM with separate AAD context for client payloads
+- Provides confidentiality + integrity for transport/application payloads
 
 ## 🔄 Complete Encryption Process
 
@@ -87,14 +88,15 @@ sequenceDiagram
     participant S as Server
     participant O as Other Clients
 
-    Note over C,S: Phase 1: Server Identity Authentication (RSA-2048)
+    Note over C,S: Phase 1: TOFU Master Key Verification
     C->>S: WebSocket Connection
-    S->>C: RSA-2048 Public Key
+    S->>C: Master RSA key + fingerprint
+    Note over C: TOFU/pin check (or mk link verification)
     
     Note over C,S: Phase 2: Client-Server Key Exchange (P-384 ECDH)
     C->>S: P-384 ECDH Public Key
-    S->>C: P-384 Public Key + RSA Signature
-    Note over C: Verify RSA signature and derive AES-256 key
+    S->>C: Session RSA public key + master-key signature
+    Note over C: Verify signature and derive AES key
     Note over S: Derive AES-256 key from P-384 ECDH
     
     Note over C,S: Phase 3: Room Authentication
