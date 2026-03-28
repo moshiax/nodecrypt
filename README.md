@@ -2,6 +2,8 @@
 
 🌐 **[中文版 README](README_ZH.md)**
 
+Relevant for commit [a2b5d364dcca99cd46b499caa86113055bf018fb](https://github.com/moshiax/nodecrypt/tree/a2b5d364dcca99cd46b499caa86113055bf018fb). See the [diff](https://github.com/moshiax/nodecrypt/compare/a2b5d364dcca99cd46b499caa86113055bf018fb...main) between this commit and the latest commit for changes.
+
 ## 🚀 Deployment Instructions
 
 ### Method 1: One-Click Deploy to Cloudflare Workers

@@ -2,6 +2,8 @@
 
 🌐 **[English README](README.md)**
 
+与提交 [a2b5d364dcca99cd46b499caa86113055bf018fb](https://github.com/moshiax/nodecrypt/tree/a2b5d364dcca99cd46b499caa86113055bf018fb) 相关。请参阅此提交与最新提交之间的 [diff](https://github.com/moshiax/nodecrypt/compare/a2b5d364dcca99cd46b499caa86113055bf018fb...main) 以了解更改。
+
 ## 🚀 部署说明
 
 ### 一键部署到 Cloudflare Workers
