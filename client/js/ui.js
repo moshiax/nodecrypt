@@ -143,6 +143,10 @@ function handleShareAction() {
 	if (encryptedPwd) {
 		url += `&p=${encodeURIComponent(encryptedPwd)}`;
 	}
+	const currentMk = new URL(window.location.href).searchParams.get('mk');
+	if (currentMk) {
+		url += `&mk=${encodeURIComponent(currentMk)}`;
+	}
 	
 	copyToClipboard(url, t('action.share_copied', 'Share link copied!'), t('action.copy_url_failed', 'Copy failed, url:'));
 }
@@ -422,7 +426,7 @@ export function loginFormHandler(modal) {
 			btn = document.querySelector('#login-form .login-btn');
 			roomInput = document.getElementById('roomName')
 		}
-		const exists = roomsData.some(rd => rd.roomName && rd.roomName.toLowerCase() === roomName.toLowerCase());
+			const exists = roomsData.some(rd => rd.roomName && rd.roomName.toLowerCase() === roomName.toLowerCase());
 		if (roomInput) {
 			roomInput.style.border = '';
 			roomInput.style.background = '';
@@ -452,13 +456,20 @@ export function loginFormHandler(modal) {
 			btn.disabled = true;
 			btn.innerText = t('ui.connecting', 'Connecting...')
 		}
-		window.joinRoom(userName, roomName, password, modal, function(success) {
-			if (!success && btn) {
-				btn.disabled = false;
-				btn.innerText = 'ENTER'
-			}
-		})
+			window.joinRoom(userName, roomName, password, modal, function(success) {
+				if (!success && btn) {
+					btn.disabled = false;
+					btn.innerText = t('ui.enter', 'ENTER')
+				}
+			})
+		}
 	}
+
+export function resetLoginButtons() {
+	document.querySelectorAll('.login-btn').forEach((btn) => {
+		btn.disabled = false;
+		btn.innerText = t('ui.enter', 'ENTER')
+	})
 }
 
 // 生成登录表单HTML

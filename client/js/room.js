@@ -11,7 +11,8 @@ import {
 } from './chat.js';
 import {
 	renderMainHeader,
-	renderUserList
+	renderUserList,
+	resetLoginButtons
 } from './ui.js';
 import {
 	escapeHTML
@@ -99,21 +100,28 @@ export function joinRoom(userName, roomName, password, modal = null, onResult) {
 	newRd.roomName = roomName;
 	newRd.myUserName = userName;
 	newRd.password = password;
-	roomsData.push(newRd);
-	const idx = roomsData.length - 1;
-	switchRoom(idx);
-	const sidebarUsername = $id('sidebar-username');
-	if (sidebarUsername) sidebarUsername.textContent = userName;
-	setSidebarAvatar(userName);
 	let closed = false;
+	let activated = false;
+	let idx = -1;
+	let chatInst = null;
 	const callbacks = {
 		onServerClosed: () => {
 			setStatus('Node connection closed');
+			resetLoginButtons();
 			if (onResult && !closed) {
 				closed = true;
 				onResult(false)
 			}
 		},		onServerSecured: () => {
+			if (!activated) {
+				roomsData.push(newRd);
+				idx = roomsData.length - 1;
+				activated = true;
+				switchRoom(idx);
+				const sidebarUsername = $id('sidebar-username');
+				if (sidebarUsername) sidebarUsername.textContent = userName;
+				setSidebarAvatar(userName);
+			}
 			if (modal) modal.remove();
 			else {
 				const loginContainer = $id('login-container');
@@ -127,17 +135,25 @@ export function joinRoom(userName, roomName, password, modal = null, onResult) {
 				closed = true;
 				onResult(true)
 			}
-			addSystemMsg(t('system.secured', 'connection secured'))
+				addSystemMsg(t('system.secured', 'connection secured'))
+			},
+		onClientSecured: (user) => {
+			if (idx >= 0) handleClientSecured(idx, user)
 		},
-		onClientSecured: (user) => handleClientSecured(idx, user),
-		onClientList: (list, selfId) => handleClientList(idx, list, selfId),
-		onClientLeft: (clientId) => handleClientLeft(idx, clientId),
-		onClientMessage: (msg) => handleClientMessage(idx, msg)
+		onClientList: (list, selfId) => {
+			if (idx >= 0) handleClientList(idx, list, selfId)
+		},
+		onClientLeft: (clientId) => {
+			if (idx >= 0) handleClientLeft(idx, clientId)
+		},
+		onClientMessage: (msg) => {
+			if (idx >= 0) handleClientMessage(idx, msg)
+		}
 	};
-	const chatInst = new window.NodeCrypt(window.config, callbacks);
+	chatInst = new window.NodeCrypt(window.config, callbacks);
+	newRd.chat = chatInst;
 	chatInst.setCredentials(userName, roomName, password);
 	chatInst.connect();
-	roomsData[idx].chat = chatInst
 }
 
 // Handle the client list update
@@ -317,6 +333,7 @@ export function handleClientMessage(idx, msg) {
 		text: msg.data,
 		userName: realUserName,
 		avatar: realUserName,
+		clientId: msg.clientId || null,
 		msgType: msgType,
 		timestamp: Date.now()
 	});
@@ -324,7 +341,7 @@ export function handleClientMessage(idx, msg) {
 	// Only add message to chat display if it's for the active room
 	if (activeRoomIndex === idx) {
 		if (window.addOtherMsg) {
-			window.addOtherMsg(msg.data, realUserName, realUserName, false, msgType);
+			window.addOtherMsg(msg.data, realUserName, realUserName, false, msgType, null, msg.clientId || null);
 		}
 	} else {
 		roomsData[idx].unreadCount = (roomsData[idx].unreadCount || 0) + 1;

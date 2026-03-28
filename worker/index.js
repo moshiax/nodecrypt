@@ -35,11 +35,92 @@ export class ChatRoom {  constructor(state, env) {
       debug: false
     };
     
-    // Initialize RSA key pair
-    this.initRSAKeyPair();
+    this.masterKeyPair = null;
+    this.sessionKeyPair = null;
+    this.initPromise = this.state.blockConcurrencyWhile(async () => {
+      await this.initMasterKeyPair();
+      await this.initSessionKeyPair();
+    });
   }
 
-  async initRSAKeyPair() {
+  bytesToBase64(bytes) {
+    return btoa(String.fromCharCode(...bytes));
+  }
+
+  base64ToBytes(base64String) {
+    return Uint8Array.from(atob(base64String), c => c.charCodeAt(0));
+  }
+
+  bytesToHex(bytes) {
+    return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  async initMasterKeyPair() {
+    if (this.masterKeyPair) {
+      return;
+    }
+
+    const stored = await this.state.storage.get('master-keypair-v1');
+    if (stored && stored.publicKey && stored.privateKey) {
+      const publicBytes = this.base64ToBytes(stored.publicKey);
+      const privateBytes = this.base64ToBytes(stored.privateKey);
+      const importedPublic = await crypto.subtle.importKey(
+        'spki',
+        publicBytes,
+        { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+        true,
+        ['verify']
+      );
+      const importedPrivate = await crypto.subtle.importKey(
+        'pkcs8',
+        privateBytes,
+        { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+        false,
+        ['sign']
+      );
+      this.masterKeyPair = {
+        rsaPublic: stored.publicKey,
+        rsaPublicHex: this.bytesToHex(publicBytes),
+        rsaPrivate: importedPrivate,
+        rsaPublicKey: importedPublic
+      };
+      return;
+    }
+
+    try {
+      const keyPair = await crypto.subtle.generateKey(
+        {
+          name: 'RSASSA-PKCS1-v1_5',
+          modulusLength: 2048,
+          publicExponent: new Uint8Array([1, 0, 1]),
+          hash: 'SHA-256'
+        },
+        true,
+        ['sign', 'verify']
+      );
+      const publicKeyBuffer = await crypto.subtle.exportKey('spki', keyPair.publicKey);
+      const privateKeyBuffer = await crypto.subtle.exportKey('pkcs8', keyPair.privateKey);
+      const publicBytes = new Uint8Array(publicKeyBuffer);
+
+      this.masterKeyPair = {
+        rsaPublic: this.bytesToBase64(publicBytes),
+        rsaPublicHex: this.bytesToHex(publicBytes),
+        rsaPrivate: keyPair.privateKey,
+        rsaPublicKey: keyPair.publicKey
+      };
+
+      await this.state.storage.put('master-keypair-v1', {
+        publicKey: this.masterKeyPair.rsaPublic,
+        privateKey: this.bytesToBase64(new Uint8Array(privateKeyBuffer)),
+        createdAt: Date.now()
+      });
+    } catch (error) {
+      console.error('Error initializing master key pair:', error);
+      throw error;
+    }
+  }
+
+  async initSessionKeyPair() {
     try {
       const keyPair = await crypto.subtle.generateKey(
         {
@@ -53,13 +134,13 @@ export class ChatRoom {  constructor(state, env) {
       );
 
       const publicKeyBuffer = await crypto.subtle.exportKey('spki', keyPair.publicKey);
-      this.keyPair = {
-        rsaPublic: btoa(String.fromCharCode(...new Uint8Array(publicKeyBuffer))),
+      this.sessionKeyPair = {
+        rsaPublic: this.bytesToBase64(new Uint8Array(publicKeyBuffer)),
         rsaPrivate: keyPair.privateKey,
         createdAt: Date.now()
       };
     } catch (error) {
-      console.error('Error initializing RSA key pair:', error);
+      console.error('Error initializing session key pair:', error);
       throw error;
     }
   }
@@ -71,9 +152,16 @@ export class ChatRoom {  constructor(state, env) {
       return new Response('Expected WebSocket Upgrade', { status: 426 });
     }
 
-    // Ensure RSA keys are initialized
-    if (!this.keyPair) {
-      await this.initRSAKeyPair();
+    // Ensure key pairs are initialized
+    if (this.initPromise) {
+      await this.initPromise;
+      this.initPromise = null;
+    }
+    if (!this.masterKeyPair) {
+      await this.initMasterKeyPair();
+    }
+    if (!this.sessionKeyPair) {
+      await this.initSessionKeyPair();
     }
 
     const webSocketPair = new WebSocketPair();
@@ -108,12 +196,29 @@ export class ChatRoom {  constructor(state, env) {
       channel: null
     };
 
-    // Send RSA public key
+    // Send master key first for trust-on-first-use / pinning
     try {
+      this.sendMessage(connection, JSON.stringify({
+        type: 'master-key',
+        key: this.masterKeyPair.rsaPublic,
+        keyHex: this.masterKeyPair.rsaPublicHex
+      }));
+    } catch (error) {
+      logEvent('sending-master-key', error, 'error');
+    }
+
+    // Send session key signed by master key
+    try {
+      const signature = await crypto.subtle.sign(
+        { name: 'RSASSA-PKCS1-v1_5' },
+        this.masterKeyPair.rsaPrivate,
+        this.base64ToBytes(this.sessionKeyPair.rsaPublic)
+      );
       logEvent('sending-public-key', clientId, 'debug');
       this.sendMessage(connection, JSON.stringify({
         type: 'server-key',
-        key: this.keyPair.rsaPublic
+        key: this.sessionKeyPair.rsaPublic,
+        sig: this.bytesToBase64(new Uint8Array(signature))
       }));
     } catch (error) {
       logEvent('sending-public-key', error, 'error');
@@ -152,7 +257,7 @@ export class ChatRoom {  constructor(state, env) {
             {
               name: 'RSASSA-PKCS1-v1_5'
             },
-            this.keyPair.rsaPrivate,
+            this.sessionKeyPair.rsaPrivate,
             publicKeyBuffer
           );
 
@@ -425,11 +530,11 @@ export class ChatRoom {  constructor(state, env) {
     if (
       Object.keys(this.clients).length === 0 &&
       Object.keys(this.channels).length === 0 &&
-      this.keyPair &&
-      (Date.now() - this.keyPair.createdAt > 24 * 60 * 60 * 1000)
+      this.sessionKeyPair &&
+      (Date.now() - this.sessionKeyPair.createdAt > 24 * 60 * 60 * 1000)
     ) {
-      this.keyPair = null;
-      await this.initRSAKeyPair();
+      this.sessionKeyPair = null;
+      await this.initSessionKeyPair();
     }
     
     return clientsToRemove.length; // 返回清理的连接数量

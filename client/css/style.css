@@ -664,6 +664,10 @@ flex-direction: column;
 	margin-bottom: .375rem;
 }
 
+.bubble-other-wrap .avatar {
+	cursor: pointer;
+}
+
 .bubble-other-main {
 	display: flex;
 	flex-direction: column;
@@ -1944,6 +1948,31 @@ body[data-ui-theme="amoled"] .member-tip {
 body[data-ui-theme="amoled"] .bubble.me {
 	background: #1a1a1a !important;
 	color: #fff !important;
+}
+
+body[data-ui-theme="amoled"] .bubble.me.private-message,
+body[data-ui-theme="amoled"] .bubble.other.private-message {
+	background: linear-gradient(135deg, #3f1d63 0%, #5b2a8a 100%) !important;
+	border: 1px solid rgba(167, 139, 250, 0.55) !important;
+	color: #fff !important;
+}
+
+body[data-ui-theme="amoled"] .bubble.other.private-message .bubble-other-name {
+	color: #e9d5ff !important;
+}
+
+body[data-ui-theme="amoled"] .bubble.private-message .bubble-meta {
+	color: #ddd6fe !important;
+}
+
+body[data-ui-theme="amoled"] .chat-input-area.private-mode .chat-input-wrapper::before {
+	background: #6d28d9 !important;
+	border: 1px solid rgba(196, 181, 253, 0.45) !important;
+}
+
+body[data-ui-theme="amoled"] .input-message-input.private-mode,
+body[data-ui-theme="amoled"] .chat-input-area.private-mode .input-field-placeholder {
+	color: #2e1065 !important;
 }
 
 body[data-ui-theme="amoled"] .bubble.system {

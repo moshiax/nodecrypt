@@ -5,6 +5,9 @@ import {
 	sha256
 } from 'js-sha256';
 import {
+	t
+} from './util.i18n.js';
+import {
 	ec as elliptic
 } from 'elliptic';
 import {
@@ -39,6 +42,10 @@ class NodeCrypt {
 		}
 		this.serverKeys = null;
 		this.serverShared = null;
+		this.serverMasterKey = null;
+		this.masterKeyVerification = null;
+		this.trustRejected = false;
+		this.pendingServerHandshakePacket = null;
 		this.credentials = null;
 		this.connection = null;
 		this.reconnect = null;
@@ -66,6 +73,141 @@ class NodeCrypt {
 		this.decryptServerMessage = this.decryptServerMessage.bind(this);
 		this.encryptClientMessage = this.encryptClientMessage.bind(this);
 		this.decryptClientMessage = this.decryptClientMessage.bind(this)
+	}
+
+	getDomainTrustStore() {
+		try {
+			return JSON.parse(localStorage.getItem('nodecrypt_masterkeys_v1') || '{}')
+		} catch (error) {
+			this.logEvent('getDomainTrustStore', error, 'error');
+			return {}
+		}
+	}
+
+	saveDomainTrustStore(store) {
+		try {
+			localStorage.setItem('nodecrypt_masterkeys_v1', JSON.stringify(store))
+		} catch (error) {
+			this.logEvent('saveDomainTrustStore', error, 'error')
+		}
+	}
+
+	getDomainTrustKey() {
+		try {
+			return (window && window.location && window.location.host) ? window.location.host : this.config.wsAddress
+		} catch (error) {
+			this.logEvent('getDomainTrustKey', error, 'error');
+			return this.config.wsAddress
+		}
+	}
+
+	createSecurityModal({
+		title = t('security.modal_title'),
+		message = '',
+		details = '',
+		confirmText = t('security.trust_key'),
+		cancelText = t('file.cancel'),
+		showCancel = true,
+		danger = false
+	} = {}) {
+		return new Promise((resolve) => {
+			const overlay = document.createElement('div');
+			overlay.className = 'security-modal-bg';
+			const card = document.createElement('div');
+			card.className = 'security-modal-card' + (danger ? ' security-modal-card-danger' : '');
+
+			const header = document.createElement('div');
+			header.className = 'security-modal-header';
+			const titleEl = document.createElement('h3');
+			titleEl.textContent = title;
+			header.appendChild(titleEl);
+
+			const body = document.createElement('div');
+			body.className = 'security-modal-body';
+			const messageEl = document.createElement('p');
+			messageEl.textContent = message;
+			body.appendChild(messageEl);
+			if (details) {
+				const detailsEl = document.createElement('pre');
+				detailsEl.className = 'security-modal-details';
+				detailsEl.textContent = details;
+				body.appendChild(detailsEl)
+			}
+
+			const actions = document.createElement('div');
+			actions.className = 'security-modal-actions';
+
+			const finish = (result) => {
+				try {
+					document.body.classList.remove('security-modal-open');
+					overlay.remove()
+				} catch (error) {
+					this.logEvent('createSecurityModal-finish', error, 'error')
+				}
+				resolve(result)
+			};
+
+			if (showCancel) {
+				const secondaryBtn = document.createElement('button');
+				secondaryBtn.className = 'security-modal-btn security-modal-btn-secondary';
+				secondaryBtn.textContent = cancelText;
+				secondaryBtn.addEventListener('click', () => finish(false));
+				actions.appendChild(secondaryBtn)
+			}
+
+			const primaryBtn = document.createElement('button');
+			primaryBtn.className = 'security-modal-btn security-modal-btn-primary';
+			primaryBtn.textContent = confirmText;
+			primaryBtn.addEventListener('click', () => finish(true));
+			actions.appendChild(primaryBtn);
+
+			card.appendChild(header);
+			card.appendChild(body);
+			card.appendChild(actions);
+			overlay.appendChild(card);
+			document.body.appendChild(overlay);
+			document.body.classList.add('security-modal-open');
+
+			overlay.addEventListener('click', (event) => {
+				if (event.target === overlay) {
+					finish(false)
+				}
+			});
+		})
+	}
+
+	async getMasterKeyFingerprint(base64Key) {
+		try {
+			const keyBytes = Buffer.from(base64Key, 'base64');
+			const digest = await crypto.subtle.digest('SHA-256', keyBytes);
+			const hash = new Uint8Array(digest);
+			const groups = [];
+			for (let i = 0; i < 12; i++) {
+				const value = ((hash[i * 2] << 8) | hash[i * 2 + 1]) % 100000;
+				groups.push(value.toString().padStart(5, '0'))
+			}
+			return {
+				compact: groups.join(''),
+				display: `${groups.slice(0, 4).join(' ')}\n${groups.slice(4, 8).join(' ')}\n${groups.slice(8, 12).join(' ')}`
+			}
+		} catch (error) {
+			this.logEvent('getMasterKeyFingerprint', error, 'error');
+			return {
+				compact: '',
+				display: ''
+			}
+		}
+	}
+
+	forceResetLoginButtons() {
+		try {
+			document.querySelectorAll('.login-btn').forEach((btn) => {
+				btn.disabled = false;
+				btn.innerText = t('ui.enter')
+			})
+		} catch (error) {
+			this.logEvent('forceResetLoginButtons', error, 'error')
+		}
 	}
 
 	// Set user credentials (username, channel, password)
@@ -96,6 +238,10 @@ class NodeCrypt {
 		this.stopPing();
 		this.serverKeys = null;
 		this.serverShared = null;
+		this.serverMasterKey = null;
+		this.masterKeyVerification = null;
+		this.trustRejected = false;
+		this.pendingServerHandshakePacket = null;
 		this.channel = {};
 		this.lastOutboundAt = 0;
 		try {
@@ -134,6 +280,10 @@ class NodeCrypt {
 		this.clientEc = null;
 		this.serverKeys = null;
 		this.serverShared = null;
+		this.serverMasterKey = null;
+		this.masterKeyVerification = null;
+		this.trustRejected = false;
+		this.pendingServerHandshakePacket = null;
 		this.credentials = null;
 		this.connection.onopen = null;
 		this.connection.onmessage = null;
@@ -184,52 +334,50 @@ class NodeCrypt {
 		this.logEvent('onMessage', event.data);
 		try {
 			const data = JSON.parse(event.data);
-			if (data.type === 'server-key') {
-				const result = await this.handleServerKey(data.key);
-				if (!result) {
-					return
+			if (data.type === 'master-key') {
+				if (!this.masterKeyVerification) {
+					this.masterKeyVerification = this.handleMasterKey(data)
 				}
-			}
-		} catch (e) {}
-		if (!this.serverShared) {
-			const parts = event.data.split('|');
-			if (!parts[0] || !parts[1]) {
-				return
-			}
-			try {
-				if (await crypto.subtle.verify({
-						name: 'RSASSA-PKCS1-v1_5'
-					}, await crypto.subtle.importKey('spki', Buffer.from(this.config.rsaPublic, 'base64'), {
-						name: 'RSASSA-PKCS1-v1_5',
-						hash: {
-							name: 'SHA-256'
-						}
-					}, false, ['verify']), Buffer.from(parts[1], 'base64'), Buffer.from(parts[0], 'hex')) === true) {
-					this.serverShared = Buffer.from(await crypto.subtle.deriveBits({
-						name: 'ECDH',
-						namedCurve: 'P-384',
-						public: await crypto.subtle.importKey('raw', Buffer.from(parts[0], 'hex'), {
-							name: 'ECDH',
-							namedCurve: 'P-384'
-						}, true, [])
-					}, this.serverKeys.privateKey, 384)).slice(8, 40);
-					this.sendMessage(await this.encryptServerMessage({
-						a: 'j',
-						p: this.credentials.channel
-					}, this.serverShared));
-					if (this.callbacks.onServerSecured) {
+				const result = await this.masterKeyVerification;
+					if (!result) {
+						this.trustRejected = true;
+						this.stopReconnect();
+						this.credentials = null;
+						this.forceResetLoginButtons();
+						this.disconnect();
+					if (this.callbacks.onServerClosed) {
 						try {
-							this.callbacks.onServerSecured()
+							this.callbacks.onServerClosed()
 						} catch (error) {
-							this.logEvent('onMessage-server-secured-callback', error, 'error')
+							this.logEvent('onMessage-server-closed-callback', error, 'error')
 						}
 					}
 				}
-			} catch (error) {
-				this.logEvent('onMessage', error, 'error')
+				return
 			}
-			return
-		}
+			if (this.masterKeyVerification) {
+				const verified = await this.masterKeyVerification;
+				if (!verified) {
+					return
+				}
+			}
+				if (data.type === 'server-key') {
+					const result = await this.handleServerKey(data.key, data.sig);
+					if (!result) {
+						return
+					}
+					if (this.pendingServerHandshakePacket && !this.serverShared) {
+						const pending = this.pendingServerHandshakePacket;
+						this.pendingServerHandshakePacket = null;
+						await this.processServerHandshakePacket(pending);
+					}
+					return
+				}
+			} catch (e) {}
+			if (!this.serverShared) {
+				await this.processServerHandshakePacket(event.data);
+				return
+			}
 		const serverDecrypted = await this.decryptServerMessage(event.data, this.serverShared);
 		this.logEvent('onMessage-server-decrypted', serverDecrypted);
 		if (!this.isObject(serverDecrypted) || !this.isString(serverDecrypted.a)) {
@@ -351,12 +499,55 @@ class NodeCrypt {
 		}
 	}
 
+	async processServerHandshakePacket(rawMessage) {
+		const parts = rawMessage.split('|');
+		if (!parts[0] || !parts[1]) {
+			return
+		}
+		if (!this.config.rsaPublic) {
+			this.pendingServerHandshakePacket = rawMessage;
+			return
+		}
+		try {
+			if (await crypto.subtle.verify({
+					name: 'RSASSA-PKCS1-v1_5'
+				}, await crypto.subtle.importKey('spki', Buffer.from(this.config.rsaPublic, 'base64'), {
+					name: 'RSASSA-PKCS1-v1_5',
+					hash: {
+						name: 'SHA-256'
+					}
+				}, false, ['verify']), Buffer.from(parts[1], 'base64'), Buffer.from(parts[0], 'hex')) === true) {
+				this.serverShared = Buffer.from(await crypto.subtle.deriveBits({
+					name: 'ECDH',
+					namedCurve: 'P-384',
+					public: await crypto.subtle.importKey('raw', Buffer.from(parts[0], 'hex'), {
+						name: 'ECDH',
+						namedCurve: 'P-384'
+					}, true, [])
+				}, this.serverKeys.privateKey, 384)).slice(8, 40);
+				this.sendMessage(await this.encryptServerMessage({
+					a: 'j',
+					p: this.credentials.channel
+				}, this.serverShared));
+				if (this.callbacks.onServerSecured) {
+					try {
+						this.callbacks.onServerSecured()
+					} catch (error) {
+						this.logEvent('onMessage-server-secured-callback', error, 'error')
+					}
+				}
+			}
+		} catch (error) {
+			this.logEvent('processServerHandshakePacket', error, 'error')
+		}
+	}
+
 	// WebSocket error event handler
 	// WebSocket 错误事件处理
 	async onError(event) {
 		this.logEvent('onError', event, 'error');
 		this.disconnect();
-		if (this.credentials) {
+		if (this.credentials && !this.trustRejected) {
 			this.startReconnect()
 		}
 		if (this.callbacks.onServerClosed) {
@@ -373,7 +564,7 @@ class NodeCrypt {
 	async onClose(event) {
 		this.logEvent('onClose', event);
 		this.disconnect();
-		if (this.credentials) {
+		if (this.credentials && !this.trustRejected) {
 			this.startReconnect()
 		}
 		if (this.callbacks.onServerClosed) {
@@ -645,11 +836,107 @@ class NodeCrypt {
 
 	// Handle server public key
 	// 处理服务器公钥
-	async handleServerKey(serverKey) {
+	async handleServerKey(serverKey, serverSignature) {
 		this.logEvent('handleServerKey', 'Received server key');
-		// Server RSA key is ephemeral (in-memory on server side),
-		// so we bind it per-session and do not persist pinning across sessions.
+		if (!this.serverMasterKey) {
+			this.logEvent('handleServerKey', 'Missing trusted master key', 'error');
+			return false
+		}
+		if (!serverSignature || !this.isString(serverSignature)) {
+			this.logEvent('handleServerKey', 'Missing session key signature', 'error');
+			return false
+		}
+		try {
+			const masterKey = await crypto.subtle.importKey('spki', Buffer.from(this.serverMasterKey, 'base64'), {
+				name: 'RSASSA-PKCS1-v1_5',
+				hash: {
+					name: 'SHA-256'
+				}
+			}, false, ['verify']);
+			const valid = await crypto.subtle.verify({
+				name: 'RSASSA-PKCS1-v1_5'
+			}, masterKey, Buffer.from(serverSignature, 'base64'), Buffer.from(serverKey, 'base64'));
+			if (!valid) {
+				this.logEvent('handleServerKey', 'Invalid session key signature', 'error');
+				return false
+			}
+		} catch (error) {
+			this.logEvent('handleServerKey', error, 'error');
+			return false
+		}
 		this.config.rsaPublic = serverKey;
+		return true
+	}
+
+	async handleMasterKey(payload) {
+		if (!payload || !this.isString(payload.key)) {
+			return false
+		}
+		const domain = this.getDomainTrustKey();
+		const keyHex = payload.keyHex || Buffer.from(payload.key, 'base64').toString('hex');
+		const keyFingerprint = await this.getMasterKeyFingerprint(payload.key);
+		const store = this.getDomainTrustStore();
+		const trusted = store[domain];
+		let accepted = false;
+
+		const url = new URL(window.location.href);
+		const urlMasterKey = (url.searchParams.get('mk') || '').toLowerCase();
+		if (urlMasterKey && keyFingerprint.compact && urlMasterKey === keyFingerprint.compact.toLowerCase()) {
+			accepted = true
+		}
+
+		if (!trusted) {
+			if (!accepted) {
+				accepted = await this.createSecurityModal({
+					title: t('security.verify_master_title'),
+					message: t('security.verify_master_message').replace('{domain}', domain),
+					details: keyFingerprint.display || keyHex,
+					confirmText: t('security.trust_key'),
+					cancelText: t('security.do_not_trust'),
+					danger: true
+				})
+			}
+			if (!accepted) {
+				await this.createSecurityModal({
+					title: t('security.connection_blocked_title'),
+					message: t('security.connection_blocked_untrusted'),
+					confirmText: t('action.back'),
+					showCancel: false,
+					danger: true
+				});
+				return false
+			}
+			store[domain] = keyHex;
+			this.saveDomainTrustStore(store);
+		} else if (trusted.toLowerCase() !== keyHex.toLowerCase()) {
+			const trustedFingerprint = await this.getMasterKeyFingerprint(Buffer.from(trusted, 'hex').toString('base64'));
+			const replace = await this.createSecurityModal({
+				title: t('security.master_changed_title'),
+				message: t('security.master_changed_message').replace('{domain}', domain),
+				details: `${t('security.fingerprint_old')}:\n${trustedFingerprint.display || trusted}\n\n${t('security.fingerprint_new')}:\n${keyFingerprint.display || keyHex}`,
+				confirmText: t('security.replace_trusted_key'),
+				cancelText: t('security.keep_old_key'),
+				danger: true
+			});
+			if (!replace) {
+				await this.createSecurityModal({
+					title: t('security.connection_blocked_title'),
+					message: t('security.connection_blocked_mismatch'),
+					confirmText: t('action.back'),
+					showCancel: false,
+					danger: true
+				});
+				return false
+			}
+			store[domain] = keyHex;
+			this.saveDomainTrustStore(store);
+		}
+
+		this.serverMasterKey = payload.key;
+		if (keyFingerprint.compact) {
+			url.searchParams.set('mk', keyFingerprint.compact);
+		}
+		window.history.replaceState({}, '', url.toString());
 		return true
 	}
 };

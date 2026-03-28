@@ -5,7 +5,8 @@ import {
 } from './util.avatar.js';
 import {
 	roomsData,
-	activeRoomIndex
+	activeRoomIndex,
+	togglePrivateChat
 } from './room.js';
 import {
 	escapeHTML,
@@ -40,7 +41,7 @@ export function renderChatArea() {
 	roomsData[activeRoomIndex].messages.forEach(m => {
 		if (m.type === 'me') addMsg(m.text, true, m.msgType || 'text', m.timestamp);
 		else if (m.type === 'system') addSystemMsg(m.text, true, m.timestamp);
-		else addOtherMsg(m.text, m.userName, m.avatar, true, m.msgType || 'text', m.timestamp)
+		else addOtherMsg(m.text, m.userName, m.avatar, true, m.msgType || 'text', m.timestamp, m.clientId || null)
 	})
 }
 
@@ -119,7 +120,7 @@ export function addMsg(text, isHistory = false, msgType = 'text', timestamp = nu
 
 // Add a message from another user to the chat area
 // 添加来自其他用户的消息到聊天区域
-export function addOtherMsg(msg, userName = '', avatar = '', isHistory = false, msgType = 'text', timestamp = null) {
+export function addOtherMsg(msg, userName = '', avatar = '', isHistory = false, msgType = 'text', timestamp = null, clientId = null) {
 	if (!userName && activeRoomIndex >= 0) {
 		const rd = roomsData[activeRoomIndex];
 		// 优先使用文件消息自带的 userName 字段
@@ -184,6 +185,10 @@ export function addOtherMsg(msg, userName = '', avatar = '', isHistory = false, 
 		contentHtml = textToHTML(msg)
 	}
 	const safeUserName = escapeHTML(userName);
+	if (clientId && typeof clientId === 'string') {
+		bubbleWrap.dataset.clientId = clientId;
+	}
+	bubbleWrap.dataset.userName = userName;
 	const date = new Date(ts);
 	const time = date.getHours().toString().padStart(2, '0') + ':' + date.getMinutes().toString().padStart(2, '0');
 	let bubbleClasses = 'bubble other';
@@ -250,6 +255,14 @@ export function updateChatInputStyle() {
 export function setupImagePreview() {
 	on($id('chat-area'), 'click', function(e) {
 		const target = e.target;
+		const avatarEl = target.closest('.bubble-other-wrap .avatar');
+		if (avatarEl) {
+			const bubbleWrap = avatarEl.closest('.bubble-other-wrap');
+			if (bubbleWrap && bubbleWrap.dataset && bubbleWrap.dataset.clientId) {
+				togglePrivateChat(bubbleWrap.dataset.clientId, bubbleWrap.dataset.userName || t('ui.anonymous', 'Anonymous'));
+			}
+			return;
+		}
 		if (target.tagName === 'IMG' && target.closest('.bubble-content')) {
 			showImageModal(target.src)
 		}

@@ -24,7 +24,8 @@ const DEFAULT_SETTINGS = {
 	notify: false,
 	sound: false,
 	theme: 'theme1',
-	uiTheme: 'light'
+	uiTheme: 'light',
+	wsProtocol: 'auto'
 	// 注意：我们不设置默认语言，让系统自动检测浏览器语言
 	// Note: We don't set a default language, let the system auto-detect browser language
 };
@@ -52,14 +53,16 @@ function saveSettings(settings) {
 		sound,
 		theme,
 		language,
-		uiTheme
+		uiTheme,
+		wsProtocol
 	} = settings;
 	localStorage.setItem('settings', JSON.stringify({
 		notify,
 		sound,
 		theme,
 		language,
-		uiTheme
+		uiTheme,
+		wsProtocol
 	}))
 }
 
@@ -75,6 +78,12 @@ function applySettings(settings) {
 	// 根据当前语言设置初始化国际化
 	initI18n(settings);
 	applyUITheme(settings.uiTheme);
+	if (window.config && window.location && window.location.host) {
+		const protocol = settings.wsProtocol === 'auto'
+			? (window.location.protocol === 'https:' ? 'wss' : 'ws')
+			: (settings.wsProtocol === 'ws' ? 'ws' : 'wss');
+		window.config.wsAddress = `${protocol}://${window.location.host}/ws`;
+	}
 }
 
 // Ask for browser notification permission
@@ -151,18 +160,34 @@ function setupSettingsPanel() {
 							<option value="light" ${settings.uiTheme === 'light' ? 'selected' : ''}>Light</option>
 						</select>
 					</div>
-				</div>
-			<div class="theme-selector" id="theme-selector">
-				${THEMES.map(theme => `
+					</div>
+				<div class="theme-selector" id="theme-selector">
+					${THEMES.map(theme => `
 					<div class="theme-item ${settings.theme === theme.id ? 'active' : ''}" data-theme-id="${theme.id}" style="background: ${theme.background}; background-size: cover; background-position: center;">
 					</div>
 				`).join('')}
+				</div>
 			</div>
-		</div>
-	`;	const notifyCheckbox = $('#settings-notify', settingsContent);
+			<div class="settings-section">
+				<div class="settings-section-title">${t('settings.connection', 'Connection')}</div>
+				<div class="settings-item">
+					<div class="settings-item-label">
+						<div>${t('settings.websocket_protocol', 'WebSocket Protocol')}</div>
+					</div>
+					<div class="language-selector">
+						<select id="settings-ws-protocol" class="language-select">
+							<option value="auto" ${settings.wsProtocol === 'auto' ? 'selected' : ''}>Auto (${window.location.protocol === 'https:' ? 'WSS' : 'WS'})</option>
+							<option value="wss" ${settings.wsProtocol === 'wss' ? 'selected' : ''}>WSS</option>
+							<option value="ws" ${settings.wsProtocol === 'ws' ? 'selected' : ''}>WS</option>
+						</select>
+					</div>
+				</div>
+			</div>
+		`;	const notifyCheckbox = $('#settings-notify', settingsContent);
 	const soundCheckbox = $('#settings-sound', settingsContent);
 	const languageSelect = $('#settings-language', settingsContent);
 	const uiThemeSelect = $('#settings-ui-theme', settingsContent);
+	const wsProtocolSelect = $('#settings-ws-protocol', settingsContent);
 	
 	// Language select event handler
 	// 语言选择事件处理
@@ -191,6 +216,14 @@ function setupSettingsPanel() {
 			settings.uiTheme = e.target.value;
 			applyUITheme(settings.uiTheme);
 			saveSettings(settings);
+		});
+	}
+
+	if (wsProtocolSelect) {
+		on(wsProtocolSelect, 'change', e => {
+			settings.wsProtocol = (e.target.value === 'ws' || e.target.value === 'wss') ? e.target.value : 'auto';
+			saveSettings(settings);
+			applySettings(settings);
 		});
 	}
 
