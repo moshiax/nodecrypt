@@ -17,15 +17,7 @@ Click the button below for one-click deployment to Cloudflare Workers:
 2. Open the Cloudflare Workers console, select "Import from GitHub," and choose your forked repository for deployment.
 > This project has built-in auto-sync workflow. After forking, no action is required. Updates from the main repository will automatically sync to your fork, and Cloudflare will automatically redeploy without manual maintenance.
 
-### Method 3: Docker One-Click Deployment (Recommended for Self-hosting)
-
-```bash
-docker run -d --name nodecrypt -p 80:80 ghcr.io/moshiax/nodecrypt
-```
-
-Access http://localhost:80
-
-### Method 4: Local Development Deployment
+### Method 3: Local Development Deployment
 After cloning the project and installing dependencies, use `npm run dev` to start the development server.
 Use `npm run deploy` to deploy to Cloudflare Workers.
 
@@ -35,7 +27,7 @@ NodeCrypt is a truly end-to-end encrypted chat system that implements a complete
 
 ### System Architecture
 - **Frontend**: ES6+ modular JavaScript, no framework dependencies
-- **Backend**: Cloudflare Workers + Durable Objects
+- **Backend**: Cloudflare Workers + Durable Objects + KV
 - **Communication**: Real-time bidirectional WebSocket communication
 - **Build**: Vite modern build tool
 
@@ -65,7 +57,7 @@ Room passwords serve as **key derivation factors** in end-to-end encryption: `Fi
 ### Three-Layer Security System
 
 #### Layer 1: TOFU + Master-Key-Based Server Identity Authentication
-- Server maintains a long-term RSA-2048 **master key** (Durable Object storage)
+- Server maintains a long-term RSA-2048 **master key** (KV storage)
 - On connect, client receives server master key fingerprint, applies TOFU (Trust On First Use), and pins it per domain in browser localStorage
 - Session RSA public key must be signed by the trusted master key, otherwise connection is blocked
 - Optional `mk` URL parameter allows out-of-band fingerprint verification in shared invite links

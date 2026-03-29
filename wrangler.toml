@@ -15,6 +15,9 @@ bindings = [
   { name = "CHAT_ROOM", class_name = "ChatRoom" }
 ]
 
+[[kv_namespaces]]
+binding = "MASTERKEY"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["ChatRoom"]

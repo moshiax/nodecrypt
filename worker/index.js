@@ -25,6 +25,7 @@ export default {
 
 export class ChatRoom {  constructor(state, env) {
     this.state = state;
+    this.env = env;
     
     // Use objects like original server.js instead of Maps
     this.clients = {};
@@ -50,7 +51,8 @@ export class ChatRoom {  constructor(state, env) {
   }
 
   async getOrCreateMasterKeyPair() {
-    const stored = await this.state.storage.get('master-keypair-v1');
+    const storedRaw = await this.env.MASTERKEY?.get('master-keypair-v1');
+    const stored = storedRaw ? JSON.parse(storedRaw) : null;
     if (stored && stored.publicKey && stored.privateKey) {
       const publicBytes = this.base64ToBytes(stored.publicKey);
       const privateBytes = this.base64ToBytes(stored.privateKey);
@@ -89,11 +91,11 @@ export class ChatRoom {  constructor(state, env) {
       rsaPrivate: keyPair.privateKey
     };
 
-    await this.state.storage.put('master-keypair-v1', {
+    await this.env.MASTERKEY.put('master-keypair-v1', JSON.stringify({
       publicKey: masterKeyPair.rsaPublic,
       privateKey: this.bytesToBase64(new Uint8Array(privateKeyBuffer)),
       createdAt: Date.now()
-    });
+    }));
 
     return masterKeyPair;
   }
