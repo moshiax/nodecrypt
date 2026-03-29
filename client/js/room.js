@@ -106,7 +106,6 @@ export async function joinRoom(userName, roomName, password, modal = null, onRes
 	let chatInst = null;
 	const callbacks = {
 		onServerClosed: () => {
-			setStatus('Node connection closed');
 			resetLoginButtons();
 			if (onResult && !closed) {
 				closed = true;

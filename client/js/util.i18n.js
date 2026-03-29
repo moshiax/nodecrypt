@@ -329,16 +329,6 @@ export function getCurrentLanguage() {
 	return currentLanguage;
 }
 
-// Get all available languages
-// 获取所有可用语言
-export function getAvailableLanguages() {
-	return Object.keys(LANGUAGES).map(code => ({
-		code,
-		name: LANGUAGES[code].name,
-		flag: LANGUAGES[code].flag
-	}));
-}
-
 // Initialize i18n with settings
 // 根据设置初始化国际化
 export function initI18n(settings) {

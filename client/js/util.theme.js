@@ -98,15 +98,3 @@ export function initTheme() {
 	const currentTheme = getCurrentTheme();
 	applyTheme(currentTheme.id);
 }
-
-// Get theme by ID
-// 根据ID获取主题
-export function getThemeById(themeId) {
-	return THEMES.find(theme => theme.id === themeId);
-}
-
-// Get all available themes
-// 获取所有可用主题
-export function getAllThemes() {
-	return THEMES;
-}

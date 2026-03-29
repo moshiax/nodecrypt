@@ -76,19 +76,14 @@ class NodeCrypt {
 	}
 
 	async deriveRoomPasswordKey(password, channelHash) {
-		try {
-			const encoder = new TextEncoder();
-			const passwordBytes = encoder.encode(password || '');
-			const saltBytes = encoder.encode(`nodecrypt-room-kdf-v1:${channelHash || ''}`);
-			const baseKey = await crypto.subtle.importKey('raw', passwordBytes, { name: 'PBKDF2' }, false, ['deriveBits']);
-			const derivedBits = await crypto.subtle.deriveBits({
-				name: 'PBKDF2', salt: saltBytes, iterations: 600000, hash: 'SHA-256'
-			}, baseKey, 256);
-			return new Uint8Array(derivedBits);
-		} catch (error) {
-			this.logEvent('deriveRoomPasswordKey', error, 'error');
-			return new Uint8Array();
-		}
+		const encoder = new TextEncoder();
+		const passwordBytes = encoder.encode(password || '');
+		const saltBytes = encoder.encode(`nodecrypt-room-kdf-v1:${channelHash || ''}`);
+		const baseKey = await crypto.subtle.importKey('raw', passwordBytes, { name: 'PBKDF2' }, false, ['deriveBits']);
+		const derivedBits = await crypto.subtle.deriveBits({
+			name: 'PBKDF2', salt: saltBytes, iterations: 600000, hash: 'SHA-256'
+		}, baseKey, 256);
+		return new Uint8Array(derivedBits);
 	}
 
 	hexToBytes(hex) {
@@ -112,26 +107,21 @@ class NodeCrypt {
 	}
 
 	async derivePeerSharedKey(ecdhSecret, passwordKey, channelHash) {
-		try {
-			const ecdhBytes = (ecdhSecret instanceof Uint8Array ? ecdhSecret : new Uint8Array(ecdhSecret || []));
-			const passwordBytes = (passwordKey instanceof Uint8Array ? passwordKey : new Uint8Array(passwordKey || []));
-			if (ecdhBytes.length !== 32 || passwordBytes.length !== 32) {
-				return null;
-			}
-			const ikm = this.concatBytes(ecdhBytes, passwordBytes);
-			const salt = this.hexToBytes(channelHash || '');
-			const hkdfBaseKey = await crypto.subtle.importKey('raw', ikm, 'HKDF', false, ['deriveBits']);
-			const derivedBits = await crypto.subtle.deriveBits({
-				name: 'HKDF',
-				hash: 'SHA-256',
-				salt: salt,
-				info: new TextEncoder().encode('nodecrypt-client-v2')
-			}, hkdfBaseKey, 256);
-			return new Uint8Array(derivedBits);
-		} catch (error) {
-			this.logEvent('derivePeerSharedKey', error, 'error');
+		const ecdhBytes = (ecdhSecret instanceof Uint8Array ? ecdhSecret : new Uint8Array(ecdhSecret || []));
+		const passwordBytes = (passwordKey instanceof Uint8Array ? passwordKey : new Uint8Array(passwordKey || []));
+		if (ecdhBytes.length !== 32 || passwordBytes.length !== 32) {
 			return null;
 		}
+		const ikm = this.concatBytes(ecdhBytes, passwordBytes);
+		const salt = this.hexToBytes(channelHash || '');
+		const hkdfBaseKey = await crypto.subtle.importKey('raw', ikm, 'HKDF', false, ['deriveBits']);
+		const derivedBits = await crypto.subtle.deriveBits({
+			name: 'HKDF',
+			hash: 'SHA-256',
+			salt: salt,
+			info: new TextEncoder().encode('nodecrypt-client-v2')
+		}, hkdfBaseKey, 256);
+		return new Uint8Array(derivedBits);
 	}
 
 	getDomainTrustStore() {

@@ -1,44 +1,5 @@
 import crypto from 'node:crypto';
 
-// Generate a new RSA key pair using Node.js crypto API
-export const generateRSAKeyPair = async () => {
-  try {
-    console.log('Generating new RSA keypair...');
-
-    return new Promise((resolve, reject) => {
-      crypto.generateKeyPair('rsa', {
-        modulusLength: 2048,
-        publicKeyEncoding: {
-          type: 'spki',
-          format: 'pem'
-        },
-        privateKeyEncoding: {
-          type: 'pkcs8',
-          format: 'pem'
-        }
-      }, (err, publicKey, privateKey) => {
-        if (err) {
-          reject(err);
-        } else {
-          // Convert PEM to base64 (remove headers and newlines)
-          const rsaPublic = publicKey
-            .replace(/-----BEGIN PUBLIC KEY-----/, '')
-            .replace(/-----END PUBLIC KEY-----/, '')
-            .replace(/\n/g, '');
-          
-          resolve({
-            rsaPublic,
-            rsaPrivate: privateKey
-          });
-        }
-      });
-    });
-  } catch (error) {
-    console.error('Error generating RSA key pair:', error);
-    throw error;
-  }
-};
-
 export const generateClientId = () => {
   try {
     return (crypto.randomBytes(8).toString('hex'));

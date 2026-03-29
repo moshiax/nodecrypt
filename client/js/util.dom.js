@@ -57,8 +57,3 @@ export function addClass(el, ...classNames) {
 export function removeClass(el, ...classNames) {
 	el.classList.remove(...classNames)
 }
-// Toggle class on element
-// 切换元素的类名
-export function toggleClass(el, className, force) {
-	el.classList.toggle(className, force)
-}
