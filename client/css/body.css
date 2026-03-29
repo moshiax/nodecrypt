@@ -270,7 +270,6 @@ body {
 	right: 0;
 	bottom: 0;
 	background: rgba(255, 255, 255, 0.5);
-	backdrop-filter: blur(12px);
 	z-index: 1;
 }
 
@@ -609,8 +608,6 @@ body[data-ui-theme="amoled"] .flip-card-back {
 	position: fixed;
 	inset: 0;
 	background: rgba(7, 13, 24, 0.62);
-	backdrop-filter: blur(8px);
-	-webkit-backdrop-filter: blur(8px);
 	display: flex;
 	align-items: center;
 	justify-content: center;
