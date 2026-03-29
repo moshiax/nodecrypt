@@ -75,6 +75,22 @@ class NodeCrypt {
 		this.decryptClientMessage = this.decryptClientMessage.bind(this)
 	}
 
+	async deriveRoomPasswordKey(password, channelHash) {
+		try {
+			const encoder = new TextEncoder();
+			const passwordBytes = encoder.encode(password || '');
+			const saltBytes = encoder.encode(`nodecrypt-room-kdf-v1:${channelHash || ''}`);
+			const baseKey = await crypto.subtle.importKey('raw', passwordBytes, { name: 'PBKDF2' }, false, ['deriveBits']);
+			const derivedBits = await crypto.subtle.deriveBits({
+				name: 'PBKDF2', salt: saltBytes, iterations: 600000, hash: 'SHA-256'
+			}, baseKey, 256);
+			return Buffer.from(new Uint8Array(derivedBits)).toString('hex');
+		} catch (error) {
+			this.logEvent('deriveRoomPasswordKey', error, 'error');
+			return '';
+		}
+	}
+
 	getDomainTrustStore() {
 		try {
 			return JSON.parse(localStorage.getItem('nodecrypt_masterkeys_v1') || '{}')
@@ -212,13 +228,15 @@ class NodeCrypt {
 
 	// Set user credentials (username, channel, password)
 	// 设置用户凭证（用户名、频道、密码）
-	setCredentials(username, channel, password) {
+	async setCredentials(username, channel, password) {
 		this.logEvent('setCredentials');
 		try {
+			const channelHash = sha256(channel);
+			const passwordKey = await this.deriveRoomPasswordKey(password, channelHash);
 			this.credentials = {
 				username: username,
-				channel: sha256(channel),
-				password: sha256(password)
+				channel: channelHash,
+				password: passwordKey
 			}
 		} catch (error) {
 			this.logEvent('setCredentials', error, 'error');

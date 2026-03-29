@@ -95,7 +95,7 @@ export function renderRooms(activeId = 0) {
 
 // Join a room
 // 加入一个房间
-export function joinRoom(userName, roomName, password, modal = null, onResult) {
+export async function joinRoom(userName, roomName, password, modal = null, onResult) {
 	const newRd = getNewRoomData();
 	newRd.roomName = roomName;
 	newRd.myUserName = userName;
@@ -152,7 +152,7 @@ export function joinRoom(userName, roomName, password, modal = null, onResult) {
 	};
 	chatInst = new window.NodeCrypt(window.config, callbacks);
 	newRd.chat = chatInst;
-	chatInst.setCredentials(userName, roomName, password);
+	await chatInst.setCredentials(userName, roomName, password);
 	chatInst.connect();
 }
 
