@@ -59,7 +59,7 @@ export class ChatRoom {  constructor(state, env) {
       const importedPrivate = await crypto.subtle.importKey(
         'pkcs8',
         privateBytes,
-        { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+        { name: 'RSA-PSS', hash: 'SHA-256' },
         false,
         ['sign']
       );
@@ -73,7 +73,7 @@ export class ChatRoom {  constructor(state, env) {
 
     const keyPair = await crypto.subtle.generateKey(
       {
-        name: 'RSASSA-PKCS1-v1_5',
+        name: 'RSA-PSS',
         modulusLength: 2048,
         publicExponent: new Uint8Array([1, 0, 1]),
         hash: 'SHA-256'
@@ -145,7 +145,7 @@ export class ChatRoom {  constructor(state, env) {
       const masterKeyPair = await this.getOrCreateMasterKeyPair();
       const sessionKeyPair = await crypto.subtle.generateKey(
         {
-          name: 'RSASSA-PKCS1-v1_5',
+          name: 'RSA-PSS',
           modulusLength: 2048,
           publicExponent: new Uint8Array([1, 0, 1]),
           hash: 'SHA-256'
@@ -156,7 +156,7 @@ export class ChatRoom {  constructor(state, env) {
       const sessionPublicKeyBuffer = await crypto.subtle.exportKey('spki', sessionKeyPair.publicKey);
       const sessionPublicKeyB64 = this.bytesToBase64(new Uint8Array(sessionPublicKeyBuffer));
       const signature = await crypto.subtle.sign(
-        { name: 'RSASSA-PKCS1-v1_5' },
+        { name: 'RSA-PSS', saltLength: 32 },
         masterKeyPair.rsaPrivate,
         this.base64ToBytes(sessionPublicKeyB64)
       );
@@ -211,10 +211,11 @@ export class ChatRoom {  constructor(state, env) {
 
           const publicKeyBuffer = await crypto.subtle.exportKey('raw', keys.publicKey);
           
-          // Sign the public key using PKCS1 padding (compatible with original)
+          // Sign the ephemeral ECDH public key with RSA-PSS
           const signature = await crypto.subtle.sign(
             {
-              name: 'RSASSA-PKCS1-v1_5'
+              name: 'RSA-PSS',
+              saltLength: 32
             },
             this.clients[clientId].sessionPrivateKey,
             publicKeyBuffer

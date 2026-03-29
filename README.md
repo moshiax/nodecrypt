@@ -49,7 +49,7 @@ NodeCrypt is a truly end-to-end encrypted chat system that implements a complete
 
 ### Room Password Mechanism
 
-Room passwords serve as **key derivation factors** in end-to-end encryption: `Final Shared Key = ECDH_Shared_Key XOR SHA256(Room Password)`
+Room passwords serve as **key derivation factors** in end-to-end encryption: `Final Shared Key = HKDF-SHA256(ECDH_Shared_Key || PBKDF2(Room Password))`
 
 - **Password Error Isolation**: Rooms with different passwords cannot decrypt each other's messages
 - **Server Blind Spot**: The server can never know the room password
@@ -59,7 +59,7 @@ Room passwords serve as **key derivation factors** in end-to-end encryption: `Fi
 #### Layer 1: TOFU + Master-Key-Based Server Identity Authentication
 - Server maintains a long-term RSA-2048 **master key** (KV storage)
 - On connect, client receives server master key fingerprint, applies TOFU (Trust On First Use), and pins it per domain in browser localStorage
-- Session RSA public key must be signed by the trusted master key, otherwise connection is blocked
+- Session RSA-PSS public key must be signed by the trusted master key, otherwise connection is blocked
 - Optional `mk` URL parameter allows out-of-band fingerprint verification in shared invite links
 
 #### Layer 2: ECDH-P384 Key Agreement
@@ -82,12 +82,12 @@ sequenceDiagram
 
     Note over C,S: Phase 1: TOFU Master Key Verification
     C->>S: WebSocket Connection
-    S->>C: Master RSA key + fingerprint
+    S->>C: Master RSA-PSS key + fingerprint
     Note over C: TOFU/pin check (or mk link verification)
     
     Note over C,S: Phase 2: Client-Server Key Exchange (P-384 ECDH)
     C->>S: P-384 ECDH Public Key
-    S->>C: Session RSA public key + master-key signature
+    S->>C: Session RSA-PSS public key + master-key signature
     Note over C: Verify signature and derive AES key
     Note over S: Derive AES-256 key from P-384 ECDH
     
@@ -104,30 +104,29 @@ sequenceDiagram
     S->>C: Forward other clients' public keys
     
     Note over C,O: Phase 5: Password-Enhanced Key Derivation
-    Note over C: Client Key = ECDH_Curve25519(own private key, other's public key) XOR SHA256(password)
-    Note over O: Client Key = ECDH_Curve25519(own private key, other's public key) XOR SHA256(password)
+    Note over C: Client Key = HKDF-SHA256(ECDH_Curve25519 || PBKDF2(password), salt=roomHash)
+    Note over O: Client Key = HKDF-SHA256(ECDH_Curve25519 || PBKDF2(password), salt=roomHash)
     
     Note over C,O: Phase 6: Identity Authentication
-    C->>S: Username (ChaCha20 encrypted with client key)
+    C->>S: Username (AES-GCM encrypted with client key)
     S->>O: Forward encrypted username
-    O->>S: Username (ChaCha20 encrypted with client key)
+    O->>S: Username (AES-GCM encrypted with client key)
     S->>C: Forward encrypted username
     Note over C,O: Both clients now verify each other's identity
     
-    Note over C,O: Phase 7: Secure Message Transmission (Double-layer encryption)
-    Note over C: 1. ChaCha20 encrypt(message content)<br/>2. AES-256 encrypt(transport layer wrapper)
-    C->>S: Double-layer encrypted message
-    Note over S: Decrypt AES-256 transport layer<br/>Extract ChaCha20 encrypted data<br/>Cannot decrypt message content
-    S->>O: Forward ChaCha20 encrypted data
-    Note over O: Decrypt AES-256 transport layer<br/>ChaCha20 decrypt to get message content
+    Note over C,O: Phase 7: Secure Message Transmission
+    Note over C: Encrypt payload with AES-256-GCM client key
+    C->>S: Encrypted message (inside encrypted transport envelope)
+    Note over S: Decrypt transport AES-256-GCM only<br/>Cannot decrypt end-to-end payload
+    S->>O: Forward encrypted payload
+    Note over O: Decrypt payload with AES-256-GCM client key
 ```
 
 ## 🛠️ Technical Implementation
 
 - **Web Cryptography API**: Native browser encryption implementation with hardware acceleration
 - **elliptic.js**: Elliptic curve cryptography library implementing Curve25519 and P-384
-- **aes-js**: Pure JavaScript AES implementation supporting multiple modes
-- **js-chacha20**: JavaScript implementation of ChaCha20 stream cipher
+- **Web Crypto AES-GCM/HKDF/PBKDF2/RSA-PSS**: Standard primitives provided by browser and Worker runtimes
 - **js-sha256**: SHA-256 hash algorithm implementation
 
 ## 🔬 Security Verification

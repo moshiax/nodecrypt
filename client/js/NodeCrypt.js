@@ -84,10 +84,53 @@ class NodeCrypt {
 			const derivedBits = await crypto.subtle.deriveBits({
 				name: 'PBKDF2', salt: saltBytes, iterations: 600000, hash: 'SHA-256'
 			}, baseKey, 256);
-			return Buffer.from(new Uint8Array(derivedBits)).toString('hex');
+			return new Uint8Array(derivedBits);
 		} catch (error) {
 			this.logEvent('deriveRoomPasswordKey', error, 'error');
-			return '';
+			return new Uint8Array();
+		}
+	}
+
+	hexToBytes(hex) {
+		if (!this.isString(hex) || !hex.match(/^[0-9a-f]+$/i) || hex.length % 2 !== 0) {
+			return new Uint8Array();
+		}
+		const bytes = new Uint8Array(hex.length / 2);
+		for (let i = 0; i < bytes.length; i++) {
+			bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+		}
+		return bytes;
+	}
+
+	concatBytes(first, second) {
+		const left = (first instanceof Uint8Array ? first : new Uint8Array(first || []));
+		const right = (second instanceof Uint8Array ? second : new Uint8Array(second || []));
+		const out = new Uint8Array(left.length + right.length);
+		out.set(left, 0);
+		out.set(right, left.length);
+		return out;
+	}
+
+	async derivePeerSharedKey(ecdhSecret, passwordKey, channelHash) {
+		try {
+			const ecdhBytes = (ecdhSecret instanceof Uint8Array ? ecdhSecret : new Uint8Array(ecdhSecret || []));
+			const passwordBytes = (passwordKey instanceof Uint8Array ? passwordKey : new Uint8Array(passwordKey || []));
+			if (ecdhBytes.length !== 32 || passwordBytes.length !== 32) {
+				return null;
+			}
+			const ikm = this.concatBytes(ecdhBytes, passwordBytes);
+			const salt = this.hexToBytes(channelHash || '');
+			const hkdfBaseKey = await crypto.subtle.importKey('raw', ikm, 'HKDF', false, ['deriveBits']);
+			const derivedBits = await crypto.subtle.deriveBits({
+				name: 'HKDF',
+				hash: 'SHA-256',
+				salt: salt,
+				info: new TextEncoder().encode('nodecrypt-client-v2')
+			}, hkdfBaseKey, 256);
+			return new Uint8Array(derivedBits);
+		} catch (error) {
+			this.logEvent('derivePeerSharedKey', error, 'error');
+			return null;
 		}
 	}
 
@@ -236,7 +279,7 @@ class NodeCrypt {
 			this.credentials = {
 				username: username,
 				channel: channelHash,
-				password: passwordKey
+				passwordKey: passwordKey
 			}
 		} catch (error) {
 			this.logEvent('setCredentials', error, 'error');
@@ -463,7 +506,12 @@ class NodeCrypt {
 						c: serverDecrypted.c
 					}, this.serverShared))
 				}
-				this.channel[serverDecrypted.c].shared = Buffer.from(this.xorHex(this.channel[serverDecrypted.c].keys.derive(this.clientEc.keyFromPublic(serverDecrypted.p, 'hex').getPublic()).toString('hex').padEnd(64, '8').substr(0, 64), this.credentials.password), 'hex');
+				const ecdhSecret = this.channel[serverDecrypted.c].keys.derive(this.clientEc.keyFromPublic(serverDecrypted.p, 'hex').getPublic()).toArrayLike(Buffer, 'be', 32);
+				const peerKey = await this.derivePeerSharedKey(new Uint8Array(ecdhSecret), this.credentials.passwordKey, this.credentials.channel);
+				if (!peerKey) {
+					return
+				}
+				this.channel[serverDecrypted.c].shared = Buffer.from(peerKey);
 				this.sendMessage(await this.encryptServerMessage({
 					a: 'c',
 					p: await this.encryptClientMessage({
@@ -528,9 +576,10 @@ class NodeCrypt {
 		}
 		try {
 			if (await crypto.subtle.verify({
-					name: 'RSASSA-PKCS1-v1_5'
+					name: 'RSA-PSS',
+					saltLength: 32
 				}, await crypto.subtle.importKey('spki', Buffer.from(this.config.rsaPublic, 'base64'), {
-					name: 'RSASSA-PKCS1-v1_5',
+					name: 'RSA-PSS',
 					hash: {
 						name: 'SHA-256'
 					}
@@ -823,17 +872,6 @@ class NodeCrypt {
 		return (decrypted)
 	}
 
-	// XOR two hex strings
-	// 对两个十六进制字符串进行异或
-	xorHex(a, b) {
-		let result = '',
-			hexLength = Math.min(a.length, b.length);
-		for (let i = 0; i < hexLength; ++i) {
-			result += (parseInt(a.charAt(i), 16) ^ parseInt(b.charAt(i), 16)).toString(16)
-		}
-		return (result)
-	}
-
 	// Check if value is a string
 	// 检查值是否为字符串
 	isString(value) {
@@ -866,13 +904,14 @@ class NodeCrypt {
 		}
 		try {
 			const masterKey = await crypto.subtle.importKey('spki', Buffer.from(this.serverMasterKey, 'base64'), {
-				name: 'RSASSA-PKCS1-v1_5',
+				name: 'RSA-PSS',
 				hash: {
 					name: 'SHA-256'
 				}
 			}, false, ['verify']);
 			const valid = await crypto.subtle.verify({
-				name: 'RSASSA-PKCS1-v1_5'
+				name: 'RSA-PSS',
+				saltLength: 32
 			}, masterKey, Buffer.from(serverSignature, 'base64'), Buffer.from(serverKey, 'base64'));
 			if (!valid) {
 				this.logEvent('handleServerKey', 'Invalid session key signature', 'error');
