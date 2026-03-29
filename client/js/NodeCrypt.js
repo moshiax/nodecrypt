@@ -574,14 +574,22 @@ class NodeCrypt {
 						name: 'SHA-256'
 					}
 				}, false, ['verify']), Buffer.from(parts[1], 'base64'), Buffer.from(parts[0], 'hex')) === true) {
-				this.serverShared = Buffer.from(await crypto.subtle.deriveBits({
+				const sharedBits = await crypto.subtle.deriveBits({
 					name: 'ECDH',
 					namedCurve: 'P-384',
 					public: await crypto.subtle.importKey('raw', Buffer.from(parts[0], 'hex'), {
 						name: 'ECDH',
 						namedCurve: 'P-384'
 					}, true, [])
-				}, this.serverKeys.privateKey, 384)).slice(8, 40);
+				}, this.serverKeys.privateKey, 384);
+				const hkdfKey = await crypto.subtle.importKey('raw', sharedBits, 'HKDF', false, ['deriveBits']);
+				const serverShared = await crypto.subtle.deriveBits({
+					name: 'HKDF',
+					hash: 'SHA-256',
+					salt: new Uint8Array(0),
+					info: new TextEncoder().encode('nodecrypt-server-handshake-v2')
+				}, hkdfKey, 256);
+				this.serverShared = Buffer.from(new Uint8Array(serverShared));
 				this.sendMessage(await this.encryptServerMessage({
 					a: 'j',
 					p: this.credentials.channel

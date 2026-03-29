@@ -242,8 +242,19 @@ export class ChatRoom {  constructor(state, env) {
             },
             keys.privateKey,
             384 // P-384 produces 48 bytes (384 bits)
-          );          // Take bytes 8-40 (32 bytes) for AES-256 key
-          this.clients[clientId].shared = new Uint8Array(sharedSecretBits).slice(8, 40);
+          );
+          const hkdfBaseKey = await crypto.subtle.importKey('raw', sharedSecretBits, 'HKDF', false, ['deriveBits']);
+          const derivedAesBits = await crypto.subtle.deriveBits(
+            {
+              name: 'HKDF',
+              hash: 'SHA-256',
+              salt: new Uint8Array(0),
+              info: new TextEncoder().encode('nodecrypt-server-handshake-v2')
+            },
+            hkdfBaseKey,
+            256
+          );
+          this.clients[clientId].shared = new Uint8Array(derivedAesBits);
           this.clients[clientId].sessionPrivateKey = null;
 
           const response = Array.from(new Uint8Array(publicKeyBuffer))
