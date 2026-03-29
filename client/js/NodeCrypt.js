@@ -597,7 +597,7 @@ class NodeCrypt {
 	// Log events for debugging
 	// 记录事件日志用于调试
 	logEvent(source, message, level) {
-		if (this.config.debug) {
+		if (this.config.debug || (level && level.toLowerCase() === 'error')) {
 			const date = new Date(),
 				dateString = date.getFullYear() + '-' + ('0' + (date.getMonth() + 1)).slice(-2) + '-' + ('0' + date.getDate()).slice(-2) + ' ' + ('0' + date.getHours()).slice(-2) + ':' + ('0' + date.getMinutes()).slice(-2) + ':' + ('0' + date.getSeconds()).slice(-2);
 			console.log('[' + dateString + ']', (level ? level.toUpperCase() : 'INFO'), source + (message ? ':' : ''), (message ? message : ''))
