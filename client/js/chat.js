@@ -199,11 +199,21 @@ export function addOtherMsg(msg, userName = '', avatar = '', isHistory = false, 
 		bubbleClasses += ' file-bubble';
 	}
 	bubbleWrap.innerHTML = `<span class="avatar"></span><div class="bubble-other-main"><div class="${bubbleClasses}"><div class="bubble-other-name">${safeUserName}</div><span class="bubble-content">${contentHtml}</span><span class="bubble-meta">${time}</span></div></div>`;
-	const svg = createAvatarSVG(userName);
+	let avatarSeed = avatar;
+	let fingerprint = '';
+	if (!avatarSeed && activeRoomIndex >= 0 && clientId) {
+		const member = roomsData[activeRoomIndex] && roomsData[activeRoomIndex].userMap ? roomsData[activeRoomIndex].userMap[clientId] : null;
+		if (member) {
+			fingerprint = member.fingerprint;
+			avatarSeed = member.fingerprint;
+		}
+	}
+	const svg = createAvatarSVG(avatarSeed);
 	const avatarEl = $('.avatar', bubbleWrap);
 	if (avatarEl) {
 		const cleanSvg = svg.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-		avatarEl.innerHTML = cleanSvg
+		avatarEl.innerHTML = cleanSvg;
+		avatarEl.title = fingerprint;
 	}
 	chatArea.appendChild(bubbleWrap);
 	chatArea.scrollTop = chatArea.scrollHeight

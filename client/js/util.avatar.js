@@ -1,32 +1,29 @@
 // JDenticon avatar generator
 // 基于 JDenticon 的头像生成器
-import { sha256 } from 'js-sha256';
 
-// Default icon size for chat avatars
-// 聊天头像的默认尺寸
 const AVATAR_SIZE = 64;
 
-// Configure jdenticon once
-// 初始化 jdenticon 配置
-function ensureJdenticonConfigured() {
-	if (!window.jdenticon) return false;
-	if (window.__nodecryptJdenticonConfigured) return true;
-	window.jdenticon.configure({
-		backColor: 'transparent',
-		padding: 0.08,
-		saturation: { color: 0.6, grayscale: 0.0 },
-		lightness: { color: [0.35, 0.7], grayscale: [0.3, 0.9] }
-	});
-	window.__nodecryptJdenticonConfigured = true;
-	return true
-}
+window.jdenticon.configure({
+	backColor: 'transparent',
+	padding: 0.08,
+	saturation: { color: 0.6, grayscale: 0.0 },
+	lightness: { color: [0.35, 0.7], grayscale: [0.3, 0.9] }
+});
 
 // Create SVG avatar for user name
 // 为用户名生成 SVG 头像
-export function createAvatarSVG(userName) {
-  const seed = String(userName || 'anonymous');
-  const hash = sha256(seed);
-  if (ensureJdenticonConfigured() && typeof window.jdenticon.toSvg === 'function') {
-    return window.jdenticon.toSvg(hash, AVATAR_SIZE);
-  }
+export function createAvatarSVG(seedValue) {
+  const seed = String(seedValue);
+  return window.jdenticon.toSvg(seed, AVATAR_SIZE);
+}
+
+export function formatFingerprintColon(hexValue, pairs = 16) {
+	const normalized = String(hexValue).replace(/[^a-fA-F0-9]/g, '').toUpperCase();
+	const take = Math.max(1, pairs) * 2;
+	const sliced = normalized.slice(0, take);
+	const chunks = [];
+	for (let i = 0; i < sliced.length; i += 2) {
+		chunks.push(sliced.slice(i, i + 2));
+	}
+	return chunks.join(':');
 }

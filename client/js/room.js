@@ -40,7 +40,9 @@ export function getNewRoomData() {
 		knownUserIds: new Set(),
 		unreadCount: 0,
 		privateChatTargetId: null,
-		privateChatTargetName: null
+		privateChatTargetName: null,
+		localPublicKey: '',
+		localFingerprint: ''
 	}
 }
 
@@ -65,7 +67,9 @@ export function switchRoom(index) {
 // 设置侧边栏头像
 export function setSidebarAvatar(userName) {
 	if (!userName) return;
-	const svg = createAvatarSVG(userName);
+	const rd = roomsData[activeRoomIndex];
+	const fingerprint = rd && rd.localFingerprint;
+	const svg = createAvatarSVG(fingerprint);
 	const el = $id('sidebar-user-avatar');
 	if (el) {
 		const cleanSvg = svg.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
@@ -139,8 +143,8 @@ export async function joinRoom(userName, roomName, password, modal = null, onRes
 		onClientSecured: (user) => {
 			if (idx >= 0) handleClientSecured(idx, user)
 		},
-		onClientList: (list, selfId) => {
-			if (idx >= 0) handleClientList(idx, list, selfId)
+		onClientList: (list, selfId, localMeta) => {
+			if (idx >= 0) handleClientList(idx, list, selfId, localMeta)
 		},
 		onClientLeft: (clientId) => {
 			if (idx >= 0) handleClientLeft(idx, clientId)
@@ -157,9 +161,13 @@ export async function joinRoom(userName, roomName, password, modal = null, onRes
 
 // Handle the client list update
 // 处理客户端列表更新
-export function handleClientList(idx, list, selfId) {
+export function handleClientList(idx, list, selfId, localMeta = null) {
 	const rd = roomsData[idx];
 	if (!rd) return;
+	if (localMeta && typeof localMeta === 'object') {
+		rd.localPublicKey = localMeta.publicKey;
+		rd.localFingerprint = localMeta.fingerprint;
+	}
 	const oldUserIds = new Set((rd.userList || []).map(u => u.clientId));
 	const newUserIds = new Set(list.map(u => u.clientId));
 	for (const oldId of oldUserIds) {
@@ -174,6 +182,7 @@ export function handleClientList(idx, list, selfId) {
 	});
 	rd.myId = selfId;
 	if (activeRoomIndex === idx) {
+		setSidebarAvatar(rd.myUserName);
 		renderUserList(false);
 		renderMainHeader()
 	}
@@ -280,7 +289,7 @@ export function handleClientMessage(idx, msg) {
 						type: 'other',
 						text: msg.data, // This is the file metadata object
 						userName: realUserName,
-						avatar: realUserName,
+							avatar: msg.clientId && newRd.userMap[msg.clientId] && newRd.userMap[msg.clientId].fingerprint,
 						msgType: historyMsgType,
 						timestamp: (msg.data && msg.data.timestamp) || Date.now() 
 					});
@@ -331,7 +340,7 @@ export function handleClientMessage(idx, msg) {
 		type: 'other',
 		text: msg.data,
 		userName: realUserName,
-		avatar: realUserName,
+		avatar: msg.clientId && newRd.userMap[msg.clientId] && newRd.userMap[msg.clientId].fingerprint,
 		clientId: msg.clientId || null,
 		msgType: msgType,
 		timestamp: Date.now()
@@ -340,7 +349,7 @@ export function handleClientMessage(idx, msg) {
 	// Only add message to chat display if it's for the active room
 	if (activeRoomIndex === idx) {
 		if (window.addOtherMsg) {
-			window.addOtherMsg(msg.data, realUserName, realUserName, false, msgType, null, msg.clientId || null);
+			window.addOtherMsg(msg.data, realUserName, msg.clientId && newRd.userMap[msg.clientId] && newRd.userMap[msg.clientId].fingerprint, false, msgType, null, msg.clientId || null);
 		}
 	} else {
 		roomsData[idx].unreadCount = (roomsData[idx].unreadCount || 0) + 1;

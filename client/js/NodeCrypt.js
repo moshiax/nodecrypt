@@ -5,6 +5,9 @@ import {
 	sha256
 } from 'js-sha256';
 import {
+	formatFingerprintColon
+} from './util.avatar.js';
+import {
 	t
 } from './util.i18n.js';
 import {
@@ -52,6 +55,9 @@ class NodeCrypt {
 		this.ping = null;
 		this.lastOutboundAt = 0;
 		this.channel = {};
+		this.identityKeys = null;
+		this.identityPublicHex = '';
+		this.identityFingerprint = '';
 		this.setCredentials = this.setCredentials.bind(this);
 		this.connect = this.connect.bind(this);
 		this.destruct = this.destruct.bind(this);
@@ -122,6 +128,14 @@ class NodeCrypt {
 			info: new TextEncoder().encode('nodecrypt-client-v2')
 		}, hkdfBaseKey, 256);
 		return new Uint8Array(derivedBits);
+	}
+
+	getKeyMeta(publicKeyHex) {
+		const keyHash = sha256(String(publicKeyHex));
+		return {
+			publicKey: publicKeyHex,
+			fingerprint: formatFingerprintColon(keyHash, 16)
+		}
 	}
 
 	getDomainTrustStore() {
@@ -229,15 +243,11 @@ class NodeCrypt {
 		try {
 			const keyBytes = Buffer.from(base64Key, 'base64');
 			const digest = await crypto.subtle.digest('SHA-256', keyBytes);
-			const hash = new Uint8Array(digest);
-			const groups = [];
-			for (let i = 0; i < 12; i++) {
-				const value = ((hash[i * 2] << 8) | hash[i * 2 + 1]) % 100000;
-				groups.push(value.toString().padStart(5, '0'))
-			}
+			const hashHex = Buffer.from(digest).toString('hex');
+			const fullFingerprint = formatFingerprintColon(hashHex, 32);
 			return {
-				compact: groups.join(''),
-				display: `${groups.slice(0, 4).join(' ')}\n${groups.slice(4, 8).join(' ')}\n${groups.slice(8, 12).join(' ')}`
+				compact: fullFingerprint,
+				display: fullFingerprint
 			}
 		} catch (error) {
 			this.logEvent('getMasterKeyFingerprint', error, 'error');
@@ -294,6 +304,10 @@ class NodeCrypt {
 		this.trustRejected = false;
 		this.pendingServerHandshakePacket = null;
 		this.channel = {};
+		this.identityKeys = this.clientEc ? this.clientEc.genKeyPair() : null;
+		this.identityPublicHex = this.identityKeys ? this.identityKeys.getPublic('hex') : '';
+		const identityMeta = this.getKeyMeta(this.identityPublicHex);
+		this.identityFingerprint = identityMeta.fingerprint;
 		this.lastOutboundAt = 0;
 		try {
 			this.connection = new WebSocket(this.config.wsAddress);
@@ -352,6 +366,9 @@ class NodeCrypt {
 		}
 		this.connection = null;
 		this.channel = {};
+		this.identityKeys = null;
+		this.identityPublicHex = '';
+		this.identityFingerprint = '';
 		this.lastOutboundAt = 0;
 		return (true)
 	}
@@ -446,10 +463,12 @@ class NodeCrypt {
 					if (!this.channel[clientId]) {
 						this.channel[clientId] = {
 							username: null,
-							keys: this.clientEc.genKeyPair(),
+							keys: this.identityKeys,
+							publicKey: '',
+							fingerprint: '',
 							shared: null,
 						};
-						payloads[clientId] = this.channel[clientId].keys.getPublic('hex')
+						payloads[clientId] = this.identityPublicHex
 					}
 				}
 				if (Object.keys(payloads).length > 0) {
@@ -465,14 +484,19 @@ class NodeCrypt {
 				let clients = [];
 				for (const clientId in this.channel) {
 					if (this.channel[clientId].shared && this.channel[clientId].username) {
-						clients.push({
-							clientId: clientId,
-							username: this.channel[clientId].username
-						})
+							clients.push({
+								clientId: clientId,
+								username: this.channel[clientId].username,
+								publicKey: this.channel[clientId].publicKey,
+								fingerprint: this.channel[clientId].fingerprint
+							})
 					}
 				}
 				try {
-					this.callbacks.onClientList(clients)
+					this.callbacks.onClientList(clients, null, {
+						publicKey: this.identityPublicHex,
+						fingerprint: this.identityFingerprint
+					})
 				} catch (error) {
 					this.logEvent('onMessage-client-list-callback', error, 'error')
 				}
@@ -487,15 +511,20 @@ class NodeCrypt {
 				if (!this.channel[serverDecrypted.c]) {
 					this.channel[serverDecrypted.c] = {
 						username: null,
-						keys: this.clientEc.genKeyPair(),
+						keys: this.identityKeys,
+						publicKey: '',
+						fingerprint: '',
 						shared: null,
 					};
 					this.sendMessage(await this.encryptServerMessage({
 						a: 'c',
-						p: this.channel[serverDecrypted.c].keys.getPublic('hex'),
+						p: this.identityPublicHex,
 						c: serverDecrypted.c
 					}, this.serverShared))
 				}
+				const peerMeta = this.getKeyMeta(serverDecrypted.p);
+				this.channel[serverDecrypted.c].publicKey = peerMeta.publicKey;
+				this.channel[serverDecrypted.c].fingerprint = peerMeta.fingerprint;
 				const ecdhSecret = this.channel[serverDecrypted.c].keys.derive(this.clientEc.keyFromPublic(serverDecrypted.p, 'hex').getPublic()).toArrayLike(Buffer, 'be', 32);
 				const peerKey = await this.derivePeerSharedKey(new Uint8Array(ecdhSecret), this.credentials.passwordKey, this.credentials.channel);
 				if (!peerKey) {
@@ -527,7 +556,9 @@ class NodeCrypt {
 					try {
 						this.callbacks.onClientSecured({
 							clientId: serverDecrypted.c,
-							username: this.channel[serverDecrypted.c].username
+							username: this.channel[serverDecrypted.c].username,
+							publicKey: this.channel[serverDecrypted.c].publicKey,
+							fingerprint: this.channel[serverDecrypted.c].fingerprint
 						})
 					} catch (error) {
 						this.logEvent('onMessage-client-secured-callback', error, 'error')
@@ -936,7 +967,8 @@ class NodeCrypt {
 
 		const url = new URL(window.location.href);
 		const urlMasterKey = (url.searchParams.get('mk') || '').toLowerCase();
-		if (urlMasterKey && keyFingerprint.compact && urlMasterKey === keyFingerprint.compact.toLowerCase()) {
+		const compactFingerprint = String(keyFingerprint.compact).toLowerCase();
+		if (urlMasterKey && compactFingerprint && urlMasterKey === compactFingerprint) {
 			accepted = true
 		}
 

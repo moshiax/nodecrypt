@@ -2,7 +2,8 @@
 // NodeCrypt 网页客户端的 UI 逻辑
 
 import {
-	createAvatarSVG
+	createAvatarSVG,
+	formatFingerprintColon
 } from './util.avatar.js';
 import {
 	roomsData,
@@ -143,9 +144,10 @@ function handleShareAction() {
 	if (encryptedPwd) {
 		url += `&p=${encodeURIComponent(encryptedPwd)}`;
 	}
-	const currentMk = new URL(window.location.href).searchParams.get('mk');
-	if (currentMk) {
-		url += `&mk=${encodeURIComponent(currentMk)}`;
+	const currentMkRaw = new URL(window.location.href).searchParams.get('mk');
+	if (currentMkRaw) {
+		const normalizedMk = formatFingerprintColon(currentMkRaw, 32);
+		url += `&mk=${normalizedMk}`;
 	}
 	
 	copyToClipboard(url, t('action.share_copied', 'Share link copied!'), t('action.copy_url_failed', 'Copy failed, url:'));
@@ -291,7 +293,11 @@ export function renderUserList(updateHeader = false) {
 	userListEl.innerHTML = '';
 	const rd = roomsData[activeRoomIndex];
 	if (!rd) return;
-	const me = rd.userList.find(u => u.clientId === rd.myId);
+	const me = {
+		clientId: rd.myId,
+		username: rd.myUserName,
+		fingerprint: rd.localFingerprint
+	};
 	const others = rd.userList.filter(u => u.clientId !== rd.myId);
 	// 新增：如有其他成员，顶部插入简洁提示
 	if (others.length > 0) {
@@ -300,7 +306,7 @@ export function renderUserList(updateHeader = false) {
 		tip.textContent = t('ui.start_private_chat', '选择用户开始私信');
 		userListEl.appendChild(tip);
 	}
-	if (me) userListEl.appendChild(createUserItem(me, true));
+	userListEl.appendChild(createUserItem(me, true));
 	others.forEach(u => userListEl.appendChild(createUserItem(u, false)));
 	if (updateHeader) {
 		renderMainHeader()
@@ -314,12 +320,14 @@ export function createUserItem(user, isMe) {
 	const rd = roomsData[activeRoomIndex];
 	const isPrivateTarget = rd && user.clientId === rd.privateChatTargetId;
 	div.className = 'member' + (isMe ? ' me' : '') + (isPrivateTarget ? ' private-chat-active' : '');
-	const rawName = user.userName || user.username || user.name || '';
+	const rawName = user.userName || user.username || user.name;
 	const safeUserName = escapeHTML(rawName);
-	div.innerHTML = `<span class="avatar"></span><div class="member-info"><div class="member-name">${safeUserName}${isMe?t('ui.me', ' (me)'):''}</div></div>`;
+	const fingerprint = user.fingerprint;
+	const safeFingerprint = escapeHTML(fingerprint);
+	div.innerHTML = `<span class="avatar" title="${safeFingerprint}"></span><div class="member-info"><div class="member-name">${safeUserName}${isMe?t('ui.me', ' (me)'):''}</div><div class="member-fingerprint" title="${safeFingerprint}">${safeFingerprint}</div></div>`;
 	const avatarEl = div.querySelector('.avatar');
 	if (avatarEl) {
-		const svg = createAvatarSVG(rawName);
+		const svg = createAvatarSVG(fingerprint);
 		const cleanSvg = svg.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
 		avatarEl.innerHTML = cleanSvg
 	}
