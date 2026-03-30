@@ -2,8 +2,7 @@
 // NodeCrypt 网页客户端的 UI 逻辑
 
 import {
-	createAvatarSVG,
-	formatFingerprintColon
+	createAvatarSVG
 } from './util.avatar.js';
 import {
 	roomsData,
@@ -146,7 +145,7 @@ function handleShareAction() {
 	}
 	const currentMkRaw = new URL(window.location.href).searchParams.get('mk');
 	if (currentMkRaw) {
-		const normalizedMk = formatFingerprintColon(currentMkRaw, 32);
+		const normalizedMk = String(currentMkRaw).replace(/[^a-fA-F0-9]/g, '').toLowerCase();
 		url += `&mk=${normalizedMk}`;
 	}
 	

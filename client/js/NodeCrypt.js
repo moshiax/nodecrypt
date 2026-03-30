@@ -240,21 +240,13 @@ class NodeCrypt {
 	}
 
 	async getMasterKeyFingerprint(base64Key) {
-		try {
-			const keyBytes = Buffer.from(base64Key, 'base64');
-			const digest = await crypto.subtle.digest('SHA-256', keyBytes);
-			const hashHex = Buffer.from(digest).toString('hex');
-			const fullFingerprint = formatFingerprintColon(hashHex, 32);
-			return {
-				compact: fullFingerprint,
-				display: fullFingerprint
-			}
-		} catch (error) {
-			this.logEvent('getMasterKeyFingerprint', error, 'error');
-			return {
-				compact: '',
-				display: ''
-			}
+		const keyBytes = Buffer.from(base64Key, 'base64');
+		const digest = await crypto.subtle.digest('SHA-256', keyBytes);
+		const hashHex = Buffer.from(digest).toString('hex');
+		const fullFingerprint = formatFingerprintColon(hashHex, 32);
+		return {
+			hash: hashHex,
+			display: fullFingerprint
 		}
 	}
 
@@ -966,9 +958,9 @@ class NodeCrypt {
 		let accepted = false;
 
 		const url = new URL(window.location.href);
-		const urlMasterKey = (url.searchParams.get('mk') || '').toLowerCase();
-		const compactFingerprint = String(keyFingerprint.compact).toLowerCase();
-		if (urlMasterKey && compactFingerprint && urlMasterKey === compactFingerprint) {
+		const urlMasterKey = url.searchParams.get('mk');
+		const trustedHash = keyFingerprint.hash;
+		if (urlMasterKey && trustedHash && urlMasterKey === trustedHash) {
 			accepted = true
 		}
 
@@ -1020,8 +1012,8 @@ class NodeCrypt {
 		}
 
 		this.serverMasterKey = payload.key;
-		if (keyFingerprint.compact) {
-			url.searchParams.set('mk', keyFingerprint.compact);
+		if (keyFingerprint.hash) {
+			url.searchParams.set('mk', keyFingerprint.hash);
 		}
 		window.history.replaceState({}, '', url.toString());
 		return true
