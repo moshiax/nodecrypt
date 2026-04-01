@@ -2,7 +2,8 @@
 // NodeCrypt 网页客户端的房间管理逻辑
 
 import {
-	createAvatarSVG
+	createAvatarSVG,
+	getColor
 } from './util.avatar.js';
 import {
 	renderChatArea,
@@ -42,8 +43,16 @@ export function getNewRoomData() {
 		privateChatTargetId: null,
 		privateChatTargetName: null,
 		localPublicKey: '',
-		localFingerprint: ''
+		localFingerprint: '',
+		localUserColor: ''
 	}
+}
+
+function decorateUser(user) {
+	if (!user || typeof user !== 'object') return user;
+	const fingerprint = String(user.fingerprint);
+	user.userColor = getColor(fingerprint);
+	return user;
 }
 
 // Switch to another room by index
@@ -140,18 +149,10 @@ export async function joinRoom(userName, roomName, password, modal = null, onRes
 			}
 				addSystemMsg(t('system.secured', 'connection secured'))
 			},
-		onClientSecured: (user) => {
-			if (idx >= 0) handleClientSecured(idx, user)
-		},
-		onClientList: (list, selfId, localMeta) => {
-			if (idx >= 0) handleClientList(idx, list, selfId, localMeta)
-		},
-		onClientLeft: (clientId) => {
-			if (idx >= 0) handleClientLeft(idx, clientId)
-		},
-		onClientMessage: (msg) => {
-			if (idx >= 0) handleClientMessage(idx, msg)
-		}
+		onClientSecured: (user) => handleClientSecured(idx, user),
+		onClientList: (list, selfId, localMeta) => handleClientList(idx, list, selfId, localMeta),
+		onClientLeft: (clientId) => handleClientLeft(idx, clientId),
+		onClientMessage: (msg) => handleClientMessage(idx, msg),
 	};
 	chatInst = new window.NodeCrypt(window.config, callbacks);
 	newRd.chat = chatInst;
@@ -167,6 +168,7 @@ export function handleClientList(idx, list, selfId, localMeta = null) {
 	if (localMeta && typeof localMeta === 'object') {
 		rd.localPublicKey = localMeta.publicKey;
 		rd.localFingerprint = localMeta.fingerprint;
+		rd.localUserColor = getColor(rd.localFingerprint);
 	}
 	const oldUserIds = new Set((rd.userList || []).map(u => u.clientId));
 	const newUserIds = new Set(list.map(u => u.clientId));
@@ -175,9 +177,9 @@ export function handleClientList(idx, list, selfId, localMeta = null) {
 			handleClientLeft(idx, oldId)
 		}
 	}
-	rd.userList = list;
+	rd.userList = list.map((user) => decorateUser(user));
 	rd.userMap = {};
-	list.forEach(u => {
+	rd.userList.forEach(u => {
 		rd.userMap[u.clientId] = u
 	});
 	rd.myId = selfId;
@@ -198,6 +200,7 @@ export function handleClientList(idx, list, selfId, localMeta = null) {
 export function handleClientSecured(idx, user) {
 	const rd = roomsData[idx];
 	if (!rd) return;
+	decorateUser(user);
 	rd.userMap[user.clientId] = user;
 	const existingUserIndex = rd.userList.findIndex(u => u.clientId === user.clientId);
 	if (existingUserIndex === -1) {
@@ -289,7 +292,8 @@ export function handleClientMessage(idx, msg) {
 						type: 'other',
 						text: msg.data, // This is the file metadata object
 						userName: realUserName,
-							avatar: msg.clientId && newRd.userMap[msg.clientId] && newRd.userMap[msg.clientId].fingerprint,
+						avatar: msg.clientId && newRd.userMap[msg.clientId] && newRd.userMap[msg.clientId].fingerprint,
+						userColor: msg.clientId && newRd.userMap[msg.clientId] && newRd.userMap[msg.clientId].userColor,
 						msgType: historyMsgType,
 						timestamp: (msg.data && msg.data.timestamp) || Date.now() 
 					});
@@ -341,6 +345,7 @@ export function handleClientMessage(idx, msg) {
 		text: msg.data,
 		userName: realUserName,
 		avatar: msg.clientId && newRd.userMap[msg.clientId] && newRd.userMap[msg.clientId].fingerprint,
+		userColor: msg.clientId && newRd.userMap[msg.clientId] && newRd.userMap[msg.clientId].userColor,
 		clientId: msg.clientId || null,
 		msgType: msgType,
 		timestamp: Date.now()
@@ -349,7 +354,7 @@ export function handleClientMessage(idx, msg) {
 	// Only add message to chat display if it's for the active room
 	if (activeRoomIndex === idx) {
 		if (window.addOtherMsg) {
-			window.addOtherMsg(msg.data, realUserName, msg.clientId && newRd.userMap[msg.clientId] && newRd.userMap[msg.clientId].fingerprint, false, msgType, null, msg.clientId || null);
+			window.addOtherMsg(msg.data, realUserName, msg.clientId && newRd.userMap[msg.clientId] && newRd.userMap[msg.clientId].fingerprint, false, msgType, null, msg.clientId || null, msg.clientId && newRd.userMap[msg.clientId] && newRd.userMap[msg.clientId].userColor);
 		}
 	} else {
 		roomsData[idx].unreadCount = (roomsData[idx].unreadCount || 0) + 1;

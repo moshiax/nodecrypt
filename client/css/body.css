@@ -26,6 +26,10 @@ body {
 	transform: rotateX(180deg);
 }
 
+.flip-card-back {
+	transform: rotateX(180deg);
+}
+
 .flip-card-front,
 .flip-card-back {
 	position: absolute;
@@ -41,10 +45,6 @@ body {
 	display: flex;
 	flex-direction: column;
 	backface-visibility: hidden;
-}
-
-.flip-card-back {
-	transform: rotateX(180deg);
 }
 
 /* 帮助按钮样式 / Help Button Styles */
@@ -83,11 +83,6 @@ body {
 	background: #30a8f7;
 	border-color: #30a8f7;
 	color: #fff;
-	transform: scale(1.1);
-}
-
-.help-btn:active {
-	transform: scale(0.95);
 }
 
 /* 帮助内容样式 / Help Content Styles */
@@ -247,10 +242,6 @@ body {
 	box-shadow: 0 4px 12px rgba(48, 168, 247, 0.3);
 }
 
-.login-btn:active {
-	transform: translateY(1px);
-}
-
 .login-modal {
 	position: fixed;
 	z-index: 9999;
@@ -307,7 +298,6 @@ body {
 
 .login-modal-close:hover {
 	color: #30a8f7;
-	transform: scale(1.1);
 }
 
 .avatar {
@@ -408,7 +398,6 @@ body {
 .img-modal-close:hover {
 	background: rgba(80, 80, 80, 0.25);
 	color: #fff;
-	transform: scale(1.1);
 }
 
 .bubble.system {
@@ -530,7 +519,6 @@ body {
   z-index: 10;
 }
 .send-message-btn:hover {
-  transform: translateY(-2px);
   transition: all 0.3s ease;
 }
 .send-message-btn:active {
@@ -546,11 +534,9 @@ body {
   transition: all 0.3s ease;
 }
 .send-message-btn:hover .text {
-  transform: scale(1.05);
   transition: all 0.3s ease;
 }
 .send-message-btn:active .text {
-  transform: scale(0.95);
   transition: all 0.1s ease;
 }
 
@@ -722,10 +708,6 @@ body[data-ui-theme="amoled"] .login-modal-card .input-group input {
 	transition: transform .1s ease, opacity .2s ease, box-shadow .2s ease;
 }
 
-.security-modal-btn:active {
-	transform: translateY(1px);
-}
-
 .security-modal-btn-primary {
 	background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
 	color: #fff;
@@ -748,11 +730,9 @@ body[data-ui-theme="amoled"] .login-modal-card .input-group input {
 @keyframes securityModalIn {
 	from {
 		opacity: 0;
-		transform: translateY(8px) scale(0.98);
 	}
 	to {
 		opacity: 1;
-		transform: translateY(0) scale(1);
 	}
 }
 

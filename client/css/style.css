@@ -688,7 +688,6 @@ flex-direction: column;
 	--surface-color: #fff;
 	--member-list-bg: #fff;
 	--member-hover-bg: #f5f5f5;
-	--member-name-color: #222;
 	--member-fingerprint-color: #666;
 }
 
@@ -1083,7 +1082,6 @@ flex-direction: column;
 .member .member-name {
 	font-weight: 500;
 	font-size: 15px;
-	color: var(--member-name-color);
 }
 
 .member .member-fingerprint {
@@ -1889,7 +1887,6 @@ body[data-ui-theme="amoled"] {
 	--surface-color: #0b0b0b;
 	--member-list-bg: #000;
 	--member-hover-bg: #131313;
-	--member-name-color: #fff;
 	--member-fingerprint-color: #b6b6b6;
 }
 
@@ -1954,7 +1951,6 @@ body[data-ui-theme="amoled"] .bubble .bubble-meta,
 body[data-ui-theme="amoled"] .more-menu-item,
 body[data-ui-theme="amoled"] .room .title,
 body[data-ui-theme="amoled"] .main-header .group-title,
-body[data-ui-theme="amoled"] .member .member-name,
 body[data-ui-theme="amoled"] .rightbar .group-info .title,
 body[data-ui-theme="amoled"] .settings-item,
 body[data-ui-theme="amoled"] .settings-section-title,

@@ -295,7 +295,8 @@ export function renderUserList(updateHeader = false) {
 	const me = {
 		clientId: rd.myId,
 		username: rd.myUserName,
-		fingerprint: rd.localFingerprint
+		fingerprint: rd.localFingerprint,
+		userColor: rd.localUserColor
 	};
 	const others = rd.userList.filter(u => u.clientId !== rd.myId);
 	// 新增：如有其他成员，顶部插入简洁提示
@@ -329,6 +330,10 @@ export function createUserItem(user, isMe) {
 		const svg = createAvatarSVG(fingerprint);
 		const cleanSvg = svg.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
 		avatarEl.innerHTML = cleanSvg
+	}
+	const memberNameEl = div.querySelector('.member-name');
+	if (memberNameEl && user.userColor) {
+		memberNameEl.style.color = user.userColor;
 	}
 	if (!isMe) {
 		div.onclick = () => togglePrivateChat(user.clientId, safeUserName)

@@ -41,7 +41,7 @@ export function renderChatArea() {
 	roomsData[activeRoomIndex].messages.forEach(m => {
 		if (m.type === 'me') addMsg(m.text, true, m.msgType || 'text', m.timestamp);
 		else if (m.type === 'system') addSystemMsg(m.text, true, m.timestamp);
-		else addOtherMsg(m.text, m.userName, m.avatar, true, m.msgType || 'text', m.timestamp, m.clientId || null)
+		else addOtherMsg(m.text, m.userName, m.avatar, true, m.msgType || 'text', m.timestamp, m.clientId || null, m.userColor)
 	})
 }
 
@@ -120,7 +120,7 @@ export function addMsg(text, isHistory = false, msgType = 'text', timestamp = nu
 
 // Add a message from another user to the chat area
 // 添加来自其他用户的消息到聊天区域
-export function addOtherMsg(msg, userName = '', avatar = '', isHistory = false, msgType = 'text', timestamp = null, clientId = null) {
+export function addOtherMsg(msg, userName = '', avatar = '', isHistory = false, msgType = 'text', timestamp = null, clientId = null, userColor = null) {
 	if (!userName && activeRoomIndex >= 0) {
 		const rd = roomsData[activeRoomIndex];
 		// 优先使用文件消息自带的 userName 字段
@@ -206,6 +206,7 @@ export function addOtherMsg(msg, userName = '', avatar = '', isHistory = false, 
 		if (member) {
 			fingerprint = member.fingerprint;
 			avatarSeed = member.fingerprint;
+			userColor = member.userColor;
 		}
 	}
 	const svg = createAvatarSVG(avatarSeed);
@@ -214,6 +215,10 @@ export function addOtherMsg(msg, userName = '', avatar = '', isHistory = false, 
 		const cleanSvg = svg.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
 		avatarEl.innerHTML = cleanSvg;
 		avatarEl.title = fingerprint;
+	}
+	const nameEl = $('.bubble-other-name', bubbleWrap);
+	if (nameEl && userColor) {
+		nameEl.style.color = userColor;
 	}
 	chatArea.appendChild(bubbleWrap);
 	chatArea.scrollTop = chatArea.scrollHeight
