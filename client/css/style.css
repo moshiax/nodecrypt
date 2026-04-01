@@ -1,9 +1,23 @@
+ :root {
+	--ui-bg: #ffffff;
+	--ui-surface: #ffffff;
+	--ui-surface-2: #f5f5f5;
+	--ui-text: #222222;
+	--ui-text-muted: #808080;
+	--ui-border: #e0e0e0;
+	--ui-border-soft: #dcdcdc;
+	--ui-accent: #30a8f7;
+	--ui-accent-strong: #7bc0ff;
+	--ui-shadow: #e0e0e0a0;
+ }
+
 body {
 	margin: 0;
 	font-family: 'Roboto', Arial, sans-serif;
 	height: 100vh;
 	overflow: hidden;
-	background: #fff;
+	background: var(--ui-bg);
+	color: var(--ui-text);
 }
 
 .login-page{
@@ -15,30 +29,22 @@ flex-direction: column;
 .container {
 	display: flex;
 	height: 100vh;
-	background: #fff;
+	background: var(--ui-bg);
 }
 
 .sidebar {
 	width: 250px;
-	background: #fff;
-	border-right: 1px solid #e0e0e0;
+	background: var(--ui-surface);
+	border-right: 1px solid var(--ui-border);
 	display: flex;
 	flex-direction: column;
-	box-shadow: 2px 0 8px #e0e0e0a0;
+	box-shadow: 2px 0 8px var(--ui-shadow);
 	transition: opacity 0.3s ease;
-}
-
-.sidebar-user {
-	display: flex;
-	align-items: center;
-	padding: 17.2px 18px 10px 17px;
-	background: #fff;
-	border-bottom: 1px solid #dcdcdc;
-	position: relative;
 }
 
 .settings-btn {
 	margin-left: auto;
+	color: var(--ui-text-muted);
 	background: none;
 	border: none;
 	cursor: pointer;
@@ -51,7 +57,7 @@ flex-direction: column;
 }
 
 .settings-btn:hover {
-	background: #f5f5f5;
+	background: var(--ui-surface-2);
 }
 
 .settings-btn svg {
@@ -61,11 +67,11 @@ flex-direction: column;
 /* Settings sidebar overlay styles */
 .settings-sidebar {
 	width: 250px;
-	background: #fff;
-	border-right: 1px solid #e0e0e0;
+	background: var(--ui-surface);
+	border-right: 1px solid var(--ui-border);
 	display: flex;
 	flex-direction: column;
-	box-shadow: 2px 0 10px #e0e0e0a0;
+	box-shadow: 2px 0 10px var(--ui-shadow);
 	position: absolute;
 	top: 0;
 	left: 0;
@@ -83,13 +89,14 @@ flex-direction: column;
     display: flex;
     align-items: center;
     padding: 19.2px 18px 18px 12px;
-    background: #fff;
-    border-bottom: 1px solid #dcdcdc;
+    background: var(--ui-surface);
+    border-bottom: 1px solid var(--ui-border-soft);
     position: relative;
 }
 
 .settings-back-btn {
 	background: none;
+	color: var(--ui-text-muted);
 	border: none;
 	cursor: pointer;
 	padding: 4px;
@@ -102,21 +109,21 @@ flex-direction: column;
 }
 
 .settings-back-btn:hover {
-	background: #f5f5f5;
+	background: var(--ui-surface-2);
 }
 
 .settings-title {
 	font-size: 1.3rem;
 	font-weight: 600;
 	margin: 0;
-	color: #30a8f7;
+	color: var(--ui-accent);
 }
 
 .settings-content {
 	flex: 1;
 	padding: 20px;
 	overflow-y: auto;
-	background: #fff;
+	background: var(--ui-surface);
 }
 
 .settings-section {
@@ -356,17 +363,18 @@ flex-direction: column;
 }
 
 .settings-close:hover {
-	background: #f5f5f5;
-	color: #30a8f7;
+	background: var(--ui-surface-2);
+	color: var(--ui-accent);
 }
 
 .sidebar .join-room {
 	display: flex;
 	align-items: center;
-	justify-content: flex-start;
-	padding: 18px 0 18px 0;
-	background: #fff;
-	border-bottom: 1px solid #e0e0e0;
+	justify-content: space-between;
+	gap: 10px;
+	padding: 10px 12px;
+	background: var(--ui-surface);
+	border-bottom: 1px solid var(--ui-border);
 	font-size: 1.13rem;
 	font-weight: 600;
 	letter-spacing: 1px;
@@ -375,19 +383,29 @@ flex-direction: column;
 	transition: background-color 0.2s ease;
 }
 
+#join-room-text {
+	flex: 1;
+	text-align: left;
+	color: var(--ui-text);
+}
+
 .sidebar .join-room input,
 .sidebar .join-room .menu-icon {
 	display: none !important;
 }
 
 .sidebar .join-room:hover {
-	background: #f5f5f5;
+	background: var(--ui-surface-2);
+}
+
+.sidebar .join-room .MuiSvgIcon-root {
+	fill: var(--ui-text-muted);
 }
 
 .sidebar .rooms {
 	flex: 1;
 	overflow-y: auto;
-	background: #fff;
+	background: var(--ui-surface);
 }
 
 .room {
@@ -396,7 +414,7 @@ flex-direction: column;
 	padding: 20px 15px;
 	border-bottom: 2px solid #ededed3b;
 	cursor: pointer;
-	background: #fff;
+	background: var(--ui-surface);
 	border-radius: 10px;
 	margin: 6px 8px;
 	box-sizing: border-box;
@@ -406,15 +424,15 @@ flex-direction: column;
 }
 
 .room.active {
-	background: #7bc0ff;
+	background: var(--ui-accent-strong);
 }
 
 .room.active:hover {
-	background: #7bc0ff;
+	background: var(--ui-accent-strong);
 }
 
 .room:hover:not(.active) {
-	background: #f5f5f5;
+	background: var(--ui-surface-2);
 }
 
 .room .info {
@@ -1882,8 +1900,12 @@ body[data-ui-theme="amoled"] {
 	--ui-surface: #0b0b0b;
 	--ui-surface-2: #131313;
 	--ui-text: #fff;
+	--ui-text-muted: #b6b6b6;
 	--ui-border: #1f1f1f;
+	--ui-border-soft: #1f1f1f;
 	--ui-accent: #ff8c00;
+	--ui-accent-strong: #ff8c00;
+	--ui-shadow: #000000;
 	--surface-color: #0b0b0b;
 	--member-list-bg: #000;
 	--member-hover-bg: #131313;
@@ -1898,7 +1920,6 @@ body[data-ui-theme="amoled"] .main::before {
 
 body[data-ui-theme="amoled"] .container,
 body[data-ui-theme="amoled"] .sidebar,
-body[data-ui-theme="amoled"] .sidebar-user,
 body[data-ui-theme="amoled"] .settings-sidebar,
 body[data-ui-theme="amoled"] .settings-header,
 body[data-ui-theme="amoled"] .settings-content,
@@ -1999,7 +2020,6 @@ body[data-ui-theme="amoled"] .bubble.system {
 body[data-ui-theme="amoled"] .settings-title,
 body[data-ui-theme="amoled"] .rightbar .tabs div,
 body[data-ui-theme="amoled"] .rightbar .tabs .active,
-body[data-ui-theme="amoled"] .bubble-other-name,
 body[data-ui-theme="amoled"] .btn-icon.toggle-emoticons,
 body[data-ui-theme="amoled"] .member .member-status,
 body[data-ui-theme="amoled"] .sidebar .join-room button,

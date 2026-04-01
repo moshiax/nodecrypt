@@ -26,10 +26,8 @@ export function getColor(seedValue) {
 	}
 
 	const h = Math.abs(hash) % 360;
-	const s = 95;
-	const l = (hash % 2 === 0)
-		? 72
-		: 38;
+	const s = 85 + (Math.abs(hash) % 10);
+	const l = 50 + (Math.abs(hash >> 3) % 10);
 
 	return `hsl(${h} ${s}% ${l}%)`;
 }

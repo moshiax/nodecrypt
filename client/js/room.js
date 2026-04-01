@@ -2,7 +2,6 @@
 // NodeCrypt 网页客户端的房间管理逻辑
 
 import {
-	createAvatarSVG,
 	getColor
 } from './util.avatar.js';
 import {
@@ -62,28 +61,11 @@ export function switchRoom(index) {
 	activeRoomIndex = index;
 	const rd = roomsData[index];
 	if (typeof rd.unreadCount === 'number') rd.unreadCount = 0;
-	const sidebarUsername = document.getElementById('sidebar-username');
-	if (sidebarUsername) sidebarUsername.textContent = rd.myUserName;
-	setSidebarAvatar(rd.myUserName);
 	renderRooms(index);
 	renderMainHeader();
 	renderUserList(false);
 	renderChatArea();
 	updateChatInputStyle()
-}
-
-// Set the sidebar avatar
-// 设置侧边栏头像
-export function setSidebarAvatar(userName) {
-	if (!userName) return;
-	const rd = roomsData[activeRoomIndex];
-	const fingerprint = rd && rd.localFingerprint;
-	const svg = createAvatarSVG(fingerprint);
-	const el = $id('sidebar-user-avatar');
-	if (el) {
-		const cleanSvg = svg.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-		el.innerHTML = cleanSvg
-	}
 }
 
 // Render the room list
@@ -130,9 +112,6 @@ export async function joinRoom(userName, roomName, password, modal = null, onRes
 				idx = roomsData.length - 1;
 				activated = true;
 				switchRoom(idx);
-				const sidebarUsername = $id('sidebar-username');
-				if (sidebarUsername) sidebarUsername.textContent = userName;
-				setSidebarAvatar(userName);
 			}
 			if (modal) modal.remove();
 			else {
@@ -184,7 +163,6 @@ export function handleClientList(idx, list, selfId, localMeta = null) {
 	});
 	rd.myId = selfId;
 	if (activeRoomIndex === idx) {
-		setSidebarAvatar(rd.myUserName);
 		renderUserList(false);
 		renderMainHeader()
 	}
@@ -407,19 +385,3 @@ export function exitRoom() {
 }
 
 export { roomsData, activeRoomIndex };
-
-// Listen for sidebar username update event
-// 监听侧边栏用户名更新事件
-window.addEventListener('updateSidebarUsername', () => {
-	if (activeRoomIndex >= 0 && roomsData[activeRoomIndex]) {
-		const rd = roomsData[activeRoomIndex];
-		const sidebarUsername = document.getElementById('sidebar-username');
-		if (sidebarUsername && rd.myUserName) {
-			sidebarUsername.textContent = rd.myUserName;
-		}
-		// Also update the avatar to ensure consistency
-		if (rd.myUserName) {
-			setSidebarAvatar(rd.myUserName);
-		}
-	}
-});

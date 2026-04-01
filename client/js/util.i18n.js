@@ -381,14 +381,7 @@ export function updateStaticTexts() {
 		window.dispatchEvent(new CustomEvent('regenerateLoginForm'));
 	}
 	
-	// Update sidebar username label
-	const sidebarUsername = document.getElementById('sidebar-username');
-	if (sidebarUsername) {
-		// Use a custom event to update sidebar username instead of dynamic import
-		// 使用自定义事件更新侧边栏用户名，而不是动态导入
-		window.dispatchEvent(new CustomEvent('updateSidebarUsername'));
-	}
-		// Update "Enter a Node" text in sidebar
+	// Update "Enter a Node" text in sidebar
 	const joinRoomText = document.getElementById('join-room-text');
 	if (joinRoomText) {
 		joinRoomText.textContent = t('ui.enter_node', 'Enter a Node');
