@@ -26,6 +26,26 @@ body {
 	color: var(--ui-text);
 }
 
+* {
+	scrollbar-width: thin;
+	scrollbar-color: color-mix(in srgb, var(--ui-accent) 60%, var(--ui-surface)) var(--ui-surface-2);
+}
+
+*::-webkit-scrollbar {
+	width: 8px;
+	height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+	background: var(--ui-surface-2);
+	border-radius: 8px;
+}
+
+*::-webkit-scrollbar-thumb {
+	background: color-mix(in srgb, var(--ui-accent) 60%, var(--ui-surface));
+	border-radius: 8px;
+}
+
 .login-page{
 display: flex;
 justify-content: center;
@@ -828,29 +848,6 @@ emoji-picker {
 	--input-border-color: var(--ui-border-soft);
 	--button-hover-background: var(--ui-surface-2);
 	--indicator-color: var(--ui-accent);
-}
-
-.emoji-menu,
-.favorites.emoji-menu {
-	scrollbar-width: thin;
-	scrollbar-color: var(--ui-accent) var(--ui-surface-2);
-}
-
-.emoji-menu::-webkit-scrollbar,
-.favorites.emoji-menu::-webkit-scrollbar {
-	width: 8px;
-}
-
-.emoji-menu::-webkit-scrollbar-track,
-.favorites.emoji-menu::-webkit-scrollbar-track {
-	background: var(--ui-surface-2);
-	border-radius: 8px;
-}
-
-.emoji-menu::-webkit-scrollbar-thumb,
-.favorites.emoji-menu::-webkit-scrollbar-thumb {
-	background: color-mix(in srgb, var(--ui-accent) 60%, var(--ui-surface));
-	border-radius: 8px;
 }
 
 .chat-emoji-btn:active {
@@ -2140,14 +2137,4 @@ body[data-ui-theme="amoled"] .progress-fill {
 body[data-ui-theme="amoled"] .input-message-input,
 body[data-ui-theme="amoled"] .input-group input {
 	color: #fff !important;
-}
-
-body[data-ui-theme="amoled"] .emoji-menu::-webkit-scrollbar-track,
-body[data-ui-theme="amoled"] .favorites.emoji-menu::-webkit-scrollbar-track {
-	background: #121212;
-}
-
-body[data-ui-theme="amoled"] .emoji-menu::-webkit-scrollbar-thumb,
-body[data-ui-theme="amoled"] .favorites.emoji-menu::-webkit-scrollbar-thumb {
-	background: color-mix(in srgb, var(--ui-accent) 70%, #121212);
 }

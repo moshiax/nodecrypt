@@ -248,15 +248,15 @@ export function handleClientMessage(idx, msg) {
 	}
 
 	let msgType = msg.type || 'text';
+	let realUserName = msg.userName;
+	if (!realUserName && msg.clientId && newRd.userMap[msg.clientId]) {
+		realUserName = newRd.userMap[msg.clientId].userName || newRd.userMap[msg.clientId].username || newRd.userMap[msg.clientId].name;
+	}
 
 	// Handle file messages
 	if (msgType.startsWith('file_')) {
 		// Part 1: Update message history and send notifications (for 'file_start' type)
 		if (msgType === 'file_start' || msgType === 'file_start_private') {
-			let realUserName = msg.userName;
-			if (!realUserName && msg.clientId && newRd.userMap[msg.clientId]) {
-				realUserName = newRd.userMap[msg.clientId].userName || newRd.userMap[msg.clientId].username || newRd.userMap[msg.clientId].name;
-			}
 			const historyMsgType = msgType === 'file_start_private' ? 'file_private' : 'file';
 			
 			const fileId = msg.data && msg.data.fileId;
@@ -272,6 +272,7 @@ export function handleClientMessage(idx, msg) {
 						userName: realUserName,
 						avatar: msg.clientId && newRd.userMap[msg.clientId] && newRd.userMap[msg.clientId].fingerprint,
 						userColor: msg.clientId && newRd.userMap[msg.clientId] && newRd.userMap[msg.clientId].userColor,
+						clientId: msg.clientId || null,
 						msgType: historyMsgType,
 						timestamp: (msg.data && msg.data.timestamp) || Date.now() 
 					});
@@ -289,7 +290,13 @@ export function handleClientMessage(idx, msg) {
 			// If it's the active room, delegate to util.file.js to handle UI and file transfer state.
 			// This applies to all file-related messages (file_start, file_volume, file_end, etc.)
 			if (window.handleFileMessage) {
-				window.handleFileMessage(msg.data, msgType.includes('_private'));
+				window.handleFileMessage({
+					...msg.data,
+					clientId: msg.clientId || null,
+					userName: realUserName,
+					avatar: msg.clientId && newRd.userMap[msg.clientId] && newRd.userMap[msg.clientId].fingerprint,
+					userColor: msg.clientId && newRd.userMap[msg.clientId] && newRd.userMap[msg.clientId].userColor
+				}, msgType.includes('_private'));
 			}
 		} else {
 			// If it's not the active room, only increment unread count for 'file_start' messages.
@@ -312,11 +319,6 @@ export function handleClientMessage(idx, msg) {
 			msgType = 'image';
 		}
 	}
-	let realUserName = msg.userName;
-	if (!realUserName && msg.clientId && newRd.userMap[msg.clientId]) {
-		realUserName = newRd.userMap[msg.clientId].userName || newRd.userMap[msg.clientId].username || newRd.userMap[msg.clientId].name;
-	}
-
 	// Add message to messages array for chat history
 	roomsData[idx].messages.push({
 		type: 'other',

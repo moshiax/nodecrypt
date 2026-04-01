@@ -631,7 +631,7 @@ export function handleFileMessage(message, isPrivate = false) {
 // Handle file start message
 // 处理文件开始消息
 function handleFileStart(message, isPrivate) {
-	const { fileId, fileName, originalSize, compressedSize, totalVolumes, originalHash, archiveHash, fileCount, fileManifest, isArchive, userName } = message;
+	const { fileId, fileName, originalSize, compressedSize, totalVolumes, originalHash, archiveHash, fileCount, fileManifest, isArchive, userName, clientId = null, avatar = '', userColor = null } = message;
 	
 	const fileTransfer = {
 		fileId,
@@ -677,7 +677,7 @@ function handleFileStart(message, isPrivate) {
 			};
 		}
 		
-		window.addOtherMsg(displayData, userName, userName, false, isPrivate ? 'file_private' : 'file');
+		window.addOtherMsg(displayData, userName, avatar, false, isPrivate ? 'file_private' : 'file', null, clientId, userColor);
 	}
 }
 
