@@ -23,12 +23,18 @@ export function escapeHTML(str) {
 // 将文本转换为 HTML，保留换行符
 export function textToHTML(text) {
 	if (typeof text !== 'string') return '';
-	// 先进行 HTML 转义，然后将换行符替换为 <br> 标签
-	// 最后使用 DOMPurify 确保结果是安全的 HTML
 	const escaped = escapeHTML(text);
-	const withLineBreaks = escaped.replace(/\n/g, '<br>');
+	const linkified = escaped.replace(
+		/(https?:\/\/[^\s<]+|www\.[^\s<]+)/gi,
+		(rawMatch) => {
+			const href = rawMatch.startsWith('http') ? rawMatch : `https://${rawMatch}`;
+			const safeHref = escapeHTML(href);
+			return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer">${rawMatch}</a>`;
+		}
+	);
+	const withLineBreaks = linkified.replace(/\n/g, '<br>');
 	return DOMPurify.sanitize(withLineBreaks, {
-		ALLOWED_TAGS: ['br'], // 只允许 <br> 标签
-		ALLOWED_ATTR: [],     // 不允许任何属性
+		ALLOWED_TAGS: ['br', 'a'],
+		ALLOWED_ATTR: ['href', 'target', 'rel'],
 	});
 }

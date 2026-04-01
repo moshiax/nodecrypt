@@ -25,22 +25,6 @@
 	--ui-upload-muted: #6c757d;
  }
 
-[theme-style="dark"] {
-	--ui-bg: #0f172a;
-	--ui-surface: #111827;
-	--ui-surface-2: #1f2937;
-	--ui-text: #e5e7eb;
-	--ui-text-strong: #f3f4f6;
-	--ui-text-secondary: #cbd5e1;
-	--ui-text-muted: #94a3b8;
-	--ui-text-light: #94a3b8;
-	--ui-text-faint: #64748b;
-	--ui-text-dim: #475569;
-	--ui-border: #334155;
-	--ui-border-soft: #1e293b;
-	--ui-shadow: rgba(0, 0, 0, 0.35);
-}
-
 body {
 	margin: 0;
 	font-family: 'Roboto', Arial, sans-serif;
@@ -50,9 +34,18 @@ body {
 	color: var(--ui-text);
 }
 
+a {
+	color: var(--ui-accent);
+}
+
+a:hover {
+	color: var(--ui-accent-strong);
+}
+
 * {
 	scrollbar-width: thin;
 	scrollbar-color: color-mix(in srgb, var(--ui-accent) 60%, var(--ui-surface)) var(--ui-surface-2);
+	-webkit-tap-highlight-color: transparent;
 }
 
 *::-webkit-scrollbar {
@@ -371,7 +364,7 @@ flex-direction: column;
 	left: 0;
 	right: 0;
 	bottom: 0;
-	background: var(--ui-border);
+	background: var(--ui-accent);
 	border-radius: 22px;
 	transition: background-color 0.3s ease;
 }
@@ -853,20 +846,23 @@ flex-direction: column;
 	border-radius: 50%;
 }
 
-emoji-picker {
-	--background: #ffffff;
-	--border-color: #e0e0e0;
-	--input-border-color: #dcdcdc;
-	--button-hover-background: #f5f5f5;
-	--indicator-color: #30a8f7;
+.chat-emoji-btn:focus,
+.chat-emoji-btn:focus-visible {
+	outline: none;
+	box-shadow: none;
 }
 
-[theme-style="dark"] emoji-picker {
-	--background: #111827;
-	--border-color: #334155;
-	--input-border-color: #1e293b;
-	--button-hover-background: #1f2937;
-	--indicator-color: #30a8f7;
+emoji-picker {
+	--background: var(--ui-bg);
+	--border-color: var(--ui-border);
+	--input-border-color: var(--ui-border-soft);
+	--input-font-color: var(--ui-text);
+	--category-font-color: var(--ui-accent);
+	--button-active-background: var(ui-accent-soft);
+	--button-hover-background: var(ui-accent-soft-strong);
+	--outline-color: transparent;
+	--indicator-color: var(--ui-accent);
+	--num-columns: 8;
 }
 
 .chat-emoji-btn:active {
@@ -1984,25 +1980,11 @@ emoji-picker {
 		max-height: 150px;
 	}
 }
-.powered-by {
-  text-align: center;
-  color: var(--ui-text-dim);
-  font-size: 13px;
-  margin: 24px 0 8px 0;
-  letter-spacing: 0.2px;
-}
-.powered-by a {
-  color: var(--ui-accent);
-  text-decoration: none;
-}
-.powered-by a:hover {
-  text-decoration: underline;
-}
-
 
 h2{
 	margin: 0%;
 }
+:root[data-ui-theme="amoled"],
 body[data-ui-theme="amoled"] {
 	--ui-bg: #000;
 	--ui-surface: #0b0b0b;
@@ -2024,23 +2006,30 @@ body[data-ui-theme="amoled"] {
 	--ui-on-accent: #ffffff;
 }
 
+:root[data-ui-theme="amoled"] .chat-input-wrapper::before,
 body[data-ui-theme="amoled"] .chat-input-wrapper::before {
 	background-color: #0b0b0b;
 }
 
+:root[data-ui-theme="amoled"] .members,
 body[data-ui-theme="amoled"] .members {
 	background: #000;
 }
 
+:root[data-ui-theme="amoled"] .member:hover,
 body[data-ui-theme="amoled"] .member:hover {
 	background: #131313;
 }
 
+:root[data-ui-theme="amoled"] .main::before,
 body[data-ui-theme="amoled"] .main::before {
 	background: none !important;
 	opacity: 0 !important;
 }
 
+:root[data-ui-theme="amoled"] .container,
+:root[data-ui-theme="amoled"] .main,
+:root[data-ui-theme="amoled"] .main-header,
 body[data-ui-theme="amoled"] .container,
 body[data-ui-theme="amoled"] .main,
 body[data-ui-theme="amoled"] .main-header {

@@ -395,6 +395,7 @@ async function handleFilesUpload(files, onSend) {
 			// Single file upload
 			const file = files[0];
 			showProgress();
+			const previewData = await createFilePreviewData(file);
 			
 			const { volumes, originalSize, compressedSize, originalHash } = await compressFileToVolumes(file);
 			
@@ -404,12 +405,15 @@ async function handleFilesUpload(files, onSend) {
 			const fileTransfer = {
 				fileId,
 				fileName: file.name,
+				fileType: file.type,
+				previewData,
 				originalSize,
 				compressedSize,
 				totalVolumes: volumes.length,
 				sentVolumes: 0,
 				status: 'sending',
-				originalHash
+				originalHash,
+				volumeData: volumes
 			};
 			
 			window.fileTransfers.set(fileId, fileTransfer);
@@ -419,6 +423,8 @@ async function handleFilesUpload(files, onSend) {
 				type: 'file_start',
 				fileId,
 				fileName: file.name,
+				fileType: file.type,
+				previewData,
 				originalSize,
 				compressedSize,
 				totalVolumes: volumes.length,
@@ -449,7 +455,8 @@ async function handleFilesUpload(files, onSend) {
 				archiveHash,
 				fileCount,
 				fileManifest,
-				isArchive: true
+				isArchive: true,
+				volumeData: volumes
 			};
 			
 			window.fileTransfers.set(fileId, fileTransfer);
@@ -478,6 +485,17 @@ async function handleFilesUpload(files, onSend) {
 			window.addSystemMsg(`Failed to compress files: ${error.message}`);
 		}
 	}
+}
+
+async function createFilePreviewData(file) {
+	if (!file || !file.type) return null;
+	if (!file.type.startsWith('image/') && !file.type.startsWith('audio/') && !file.type.startsWith('video/')) return null;
+	return await new Promise((resolve) => {
+		const reader = new FileReader();
+		reader.onload = (event) => resolve(event.target.result);
+		reader.onerror = () => resolve(null);
+		reader.readAsDataURL(file);
+	});
 }
 
 // Send volumes with progress tracking
@@ -631,11 +649,13 @@ export function handleFileMessage(message, isPrivate = false) {
 // Handle file start message
 // 处理文件开始消息
 function handleFileStart(message, isPrivate) {
-	const { fileId, fileName, originalSize, compressedSize, totalVolumes, originalHash, archiveHash, fileCount, fileManifest, isArchive, userName, clientId = null, avatar = '', userColor = null } = message;
+	const { fileId, fileName, fileType = '', previewData = null, originalSize, compressedSize, totalVolumes, originalHash, archiveHash, fileCount, fileManifest, isArchive, userName, clientId = null, avatar = '', userColor = null } = message;
 	
 	const fileTransfer = {
 		fileId,
 		fileName,
+		fileType,
+		previewData,
 		originalSize,
 		compressedSize,
 		totalVolumes,
@@ -671,6 +691,8 @@ function handleFileStart(message, isPrivate) {
 				type: 'file',
 				fileId,
 				fileName,
+				fileType,
+				previewData,
 				originalSize,
 				totalVolumes,
 				userName

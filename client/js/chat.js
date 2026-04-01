@@ -27,6 +27,40 @@ import {
 import {
 	t
 } from './util.i18n.js';
+import DOMPurify from 'dompurify';
+
+const youtubeRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]{11})/;
+
+function arePreviewsEnabled() {
+	try {
+		const settings = JSON.parse(localStorage.getItem('settings') || '{}');
+		return settings.previews !== false;
+	} catch {
+		return true;
+	}
+}
+
+function getYouTubeId(text = '') {
+	const match = text.match(youtubeRegex);
+	return match ? match[1] : null;
+}
+
+function renderYouTubePreview(text = '') {
+	if (!arePreviewsEnabled()) return '';
+	const id = getYouTubeId(text);
+	if (!id) return '';
+	return `<div class="youtube-preview"><div class="js-plyr" data-plyr-provider="youtube" data-plyr-embed-id="${id}"></div></div>`;
+}
+
+function initPlyrPlayers(root = document) {
+	if (!window.Plyr || !root || !root.querySelectorAll) return;
+	root.querySelectorAll('.js-plyr').forEach((el) => {
+		if (el.dataset.plyrBound === '1') return;
+		const options = window.PLYR_CONFIG || window.plyrConfig || {};
+		new window.Plyr(el, options);
+		el.dataset.plyrBound = '1';
+	});
+}
 
 // Render the chat area
 // 渲染聊天区域
@@ -42,7 +76,8 @@ export function renderChatArea() {
 		if (m.type === 'me') addMsg(m.text, true, m.msgType || 'text', m.timestamp);
 		else if (m.type === 'system') addSystemMsg(m.text, true, m.timestamp);
 		else addOtherMsg(m.text, m.userName, m.avatar, true, m.msgType || 'text', m.timestamp, m.clientId || null, m.userColor)
-	})
+	});
+	initPlyrPlayers(chatArea);
 }
 
 // Add a message to the chat area
@@ -109,12 +144,13 @@ export function addMsg(text, isHistory = false, msgType = 'text', timestamp = nu
 		// Add file-bubble class for special timestamp positioning
 		className += ' file-bubble';
 	} else {
-		contentHtml = textToHTML(text)
+		contentHtml = textToHTML(text) + renderYouTubePreview(typeof text === 'string' ? text : '')
 	}
 	const div = createElement('div', {
 		class: className
 	}, `<span class="bubble-content">${contentHtml}</span><span class="bubble-meta">${time}</span>`);
 	chatArea.appendChild(div);
+	initPlyrPlayers(div);
 	chatArea.scrollTop = chatArea.scrollHeight
 }
 
@@ -182,7 +218,7 @@ export function addOtherMsg(msg, userName = '', avatar = '', isHistory = false, 
 	} else if (msgType === 'file' || msgType === 'file_private') {
 		// Handle file messages
 		contentHtml = renderFileMessage(msg, false);	} else {
-		contentHtml = textToHTML(msg)
+		contentHtml = textToHTML(msg) + renderYouTubePreview(typeof msg === 'string' ? msg : '')
 	}
 	const safeUserName = escapeHTML(userName);
 	if (clientId && typeof clientId === 'string') {
@@ -221,6 +257,7 @@ export function addOtherMsg(msg, userName = '', avatar = '', isHistory = false, 
 		nameEl.style.color = userColor;
 	}
 	chatArea.appendChild(bubbleWrap);
+	initPlyrPlayers(bubbleWrap);
 	chatArea.scrollTop = chatArea.scrollHeight
 }
 
@@ -370,6 +407,8 @@ function renderFileMessage(fileData, isSender) {
 	const {
 		fileId,
 		fileName,
+		fileType = '',
+		previewData = null,
 		originalSize,
 		totalVolumes,
 		fileCount,
@@ -388,6 +427,22 @@ function renderFileMessage(fileData, isSender) {
 	}
 	
 	const safeDisplayName = escapeHTML(displayName);
+	const safePreviewSrc = previewData ? escapeHTML(previewData) : '';
+	let previewHtml = '';
+	const previewsEnabled = arePreviewsEnabled();
+	if (previewsEnabled && safePreviewSrc && fileType.startsWith('image/')) {
+		previewHtml = `<img src="${safePreviewSrc}" alt="image preview" class="bubble-img">`;
+	} else if (previewsEnabled && safePreviewSrc && fileType.startsWith('audio/')) {
+		previewHtml = `<audio class="js-plyr" controls preload="metadata"><source src="${safePreviewSrc}" type="${escapeHTML(fileType)}"></audio>`;
+	} else if (previewsEnabled && safePreviewSrc && fileType.startsWith('video/')) {
+		previewHtml = `<video class="js-plyr" controls preload="metadata"><source src="${safePreviewSrc}" type="${escapeHTML(fileType)}"></video>`;
+	}
+	if (previewHtml) {
+		previewHtml = DOMPurify.sanitize(previewHtml, {
+			ALLOWED_TAGS: ['img', 'audio', 'video', 'source'],
+			ALLOWED_ATTR: ['src', 'type', 'controls', 'preload', 'alt', 'class']
+		});
+	}
 
 	// Check actual file transfer status
 	const transfer = window.fileTransfers ? window.fileTransfers.get(fileId) : null;
@@ -421,6 +476,7 @@ function renderFileMessage(fileData, isSender) {
 
 	return `
 		<div class="file-message" data-file-id="${fileId}">
+			${previewHtml}
 			<div class="file-main-content">
 				<div class="file-info">
 					<div class="file-icon">${fileIcon}</div>

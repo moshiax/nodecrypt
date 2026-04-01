@@ -124,7 +124,7 @@ body {
 
 .help-section h3 {
 	font-size: 1.1rem;
-	color: #4A5568;
+	color: var(--ui-accent-strong);
 	margin-bottom: 12px;
 	font-weight: 600;
 	display: flex;
@@ -153,7 +153,7 @@ body {
 }
 
 .help-section li strong {
-	color: #2D3748;
+	color: var(--ui-accent);
 	font-weight: 600;
 }
 
@@ -576,6 +576,7 @@ body {
   position: relative;
   z-index: 1;
 }
+:root[data-ui-theme="amoled"] body,
 body[data-ui-theme="amoled"] {
 	background: #000 !important;
 	color: var(--ui-on-accent) !important;
@@ -610,6 +611,7 @@ body[data-ui-theme="amoled"] {
 	animation: securityModalIn .18s ease-out;
 }
 
+:root[data-ui-theme="light"] body,
 body[data-ui-theme="light"] {
 	--security-modal-overlay: rgba(15, 23, 42, 0.35);
 	--security-modal-card-bg: #ffffff;

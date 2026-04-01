@@ -25,7 +25,8 @@ const DEFAULT_SETTINGS = {
 	sound: false,
 	theme: 'theme1',
 	uiTheme: 'light',
-	wsProtocol: 'auto'
+	wsProtocol: 'auto',
+	previews: true
 	// 注意：我们不设置默认语言，让系统自动检测浏览器语言
 	// Note: We don't set a default language, let the system auto-detect browser language
 };
@@ -54,7 +55,8 @@ function saveSettings(settings) {
 		theme,
 		language,
 		uiTheme,
-		wsProtocol
+		wsProtocol,
+		previews
 	} = settings;
 	localStorage.setItem('settings', JSON.stringify({
 		notify,
@@ -62,12 +64,14 @@ function saveSettings(settings) {
 		theme,
 		language,
 		uiTheme,
-		wsProtocol
+		wsProtocol,
+		previews
 	}))
 }
 
 function applyUITheme(uiTheme) {
 	const theme = uiTheme || 'light';
+	document.documentElement.setAttribute('data-ui-theme', theme);
 	document.body.setAttribute('data-ui-theme', theme);
 }
 
@@ -169,6 +173,18 @@ function setupSettingsPanel() {
 				</div>
 			</div>
 			<div class="settings-section">
+				<div class="settings-section-title">${t('settings.chat', 'Chat Settings')}</div>
+				<div class="settings-item">
+					<div class="settings-item-label">
+						<div>${t('settings.previews', 'Media previews')}</div>
+					</div>
+					<label class="switch">
+						<input type="checkbox" id="settings-previews" ${settings.previews ? 'checked' : ''}>
+						<span class="slider"></span>
+					</label>
+				</div>
+			</div>
+			<div class="settings-section">
 				<div class="settings-section-title">${t('settings.connection', 'Connection')}</div>
 				<div class="settings-item">
 					<div class="settings-item-label">
@@ -188,6 +204,7 @@ function setupSettingsPanel() {
 	const languageSelect = $('#settings-language', settingsContent);
 	const uiThemeSelect = $('#settings-ui-theme', settingsContent);
 	const wsProtocolSelect = $('#settings-ws-protocol', settingsContent);
+	const previewsCheckbox = $('#settings-previews', settingsContent);
 	
 	// Language select event handler
 	// 语言选择事件处理
@@ -215,6 +232,12 @@ function setupSettingsPanel() {
 		on(uiThemeSelect, 'change', e => {
 			settings.uiTheme = e.target.value;
 			applyUITheme(settings.uiTheme);
+			saveSettings(settings);
+		});
+	}
+	if (previewsCheckbox) {
+		on(previewsCheckbox, 'change', e => {
+			settings.previews = e.target.checked;
 			saveSettings(settings);
 		});
 	}
