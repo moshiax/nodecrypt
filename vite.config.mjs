@@ -1,6 +1,4 @@
-import {
-	defineConfig
-} from 'vite';
+import { defineConfig } from 'vite';
 export default defineConfig({
 	// Root directory
 	// 根目录
@@ -37,7 +35,8 @@ export default defineConfig({
 		},
 		// Rollup options
 		// Rollup 选项
-		rollupOptions: {			// Input file
+		rollupOptions: {
+			// Input file
 			// 输入文件
 			input: 'client/index.html',
 			// Output options
@@ -47,12 +46,9 @@ export default defineConfig({
 				// 手动分块
 				manualChunks: (id) => {
 					if (id.includes('node_modules')) {
-						if (/aes-js|elliptic|js-chacha20|js-sha256/.test(id)) {
-							return 'crypto-libs'
-						}
-						return 'vendor-deps'
+						return 'vendor-deps';
 					}
-					return undefined
+					return undefined;
 				},
 			},
 		},

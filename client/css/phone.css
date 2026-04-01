@@ -80,7 +80,7 @@
 		bottom: 0;
 		z-index: 1000;
 		height: 100dvh;
-		background: #fff;
+		background: var(--ui-surface);
 		box-shadow: 2px 0 16px #0002;
 		transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 	}
@@ -88,7 +88,7 @@
 	.sidebar {
 		left: 0;
 		transform: translateX(-100%);
-		border-right: 1px solid #e0e0e0;
+		border-right: 1px solid var(--ui-border);
 	}
 
 	.sidebar.mobile-open {
@@ -97,7 +97,7 @@
 
 	.settings-sidebar {
 		transform: translateX(-100%);
-		border-right: 1px solid #e0e0e0;
+		border-right: 1px solid var(--ui-border);
 		z-index: 1001; /* Higher than normal sidebar */
 	}
 
@@ -109,7 +109,7 @@
 		right: 0;
 		max-width: 70vw;
 		transform: translateX(100%);
-		border-left: 1px solid #e0e0e0;
+		border-left: 1px solid var(--ui-border);
 	}
 
 	.rightbar.mobile-open {
@@ -151,7 +151,7 @@
 
 	.mobile-menu-btn:active,
 	.mobile-info-btn:active {
-		background: #e0e0e0;
+		background: var(--ui-border);
 		transform: scale(0.93);
 	}	.settings-panel-card {
 		left: 2vw !important;
@@ -163,30 +163,22 @@
 }
 
 .member.private-chat-active {
-	background-color: #e0d0ff !important;
+	background-color: var(--ui-accent-soft-strong) !important;
 	transition: background-color 0.2s ease;
 }
 
-.member.private-chat-active:hover {
-	background-color: #d8c8f8 !important;
-}
-
 .chat-input-area.private-mode .chat-input-wrapper::before {
-	background-color: #f0e8ff !important;
+	background-color: var(--ui-accent-soft-strong) !important;
 	transition: background-color 0.3s ease;
 }
 
 .bubble.other.private-message {
-	background-color: #9370db !important;
+	background-color: var(--ui-accent-soft-strong) !important;
 	color: white !important;
 }
 
-.bubble.other.private-message .bubble-other-name {
-	color: #f0e8ff !important;
-}
-
 .bubble.other.private-message .bubble-meta {
-	color: #e0d0ff !important;
+	color: var(--ui-accent-soft-strong) !important;
 }
 
 .bubble.other.private-message .bubble-content {
@@ -195,12 +187,12 @@
 }
 
 .bubble.me.private-message {
-	background-color: #9370db !important;
+	background-color: var(--ui-accent-soft-strong) !important;
 	color: white !important;
 }
 
 .bubble.me.private-message .bubble-meta {
-	color: #e0d0ff !important;
+	color: var(--ui-accent-soft-strong) !important;
 }
 
 .bubble.me.private-message .bubble-content {

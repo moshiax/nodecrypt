@@ -9,13 +9,13 @@
   left: 16px;
   pointer-events: none;
   font-size: 1.1rem;
-  color: #888;
+  color: var(--ui-text-light);
   transition: 0.25s cubic-bezier(0.68, -0.55, 0.265, 1.55);
 }
 
 .input-group input:focus + .floating-label,
 .input-group input:not(:placeholder-shown) + .floating-label {
-  color: #30a8f7;
+  color: var(--ui-accent);
   transform: translateY(-40px);
 }
 

@@ -1,5 +1,28 @@
+:root {
+	--login-btn-hover-bg: #2196e3;
+	--login-input-bg: #fafbfc;
+	--login-input-border: #e5e5e5;
+	--login-card-form-bg: transparent;
+	--security-modal-overlay: rgba(7, 13, 24, 0.62);
+	--security-modal-card-bg: linear-gradient(160deg, #1b2435 0%, #111827 100%);
+	--security-modal-card-color: #ffffff;
+	--security-modal-card-border: rgba(255, 255, 255, 0.14);
+	--security-modal-card-shadow: 0 22px 60px rgba(0, 0, 0, 0.45);
+	--security-modal-body-color: rgba(255, 255, 255, 0.95);
+	--security-modal-details-bg: rgba(0, 0, 0, 0.32);
+	--security-modal-details-border: rgba(255, 255, 255, 0.16);
+	--security-modal-details-color: #dbeafe;
+	--security-modal-btn-secondary-bg: rgba(255, 255, 255, 0.12);
+	--security-modal-btn-secondary-hover-bg: rgba(255, 255, 255, 0.18);
+	--security-modal-btn-secondary-color: #ffffff;
+	--security-modal-btn-secondary-shadow: none;
+	--chat-input-border-radius: 1rem;
+	--chat-input-size: 3.25rem;
+	--chat-input-inner-padding: 1.25rem;
+}
+
 body {
-	background: #fff;
+	background: var(--ui-surface);
 	font-family: 'Roboto', Arial, sans-serif;
 	margin: 0;
 }
@@ -40,7 +63,7 @@ body {
 	border-radius: 14px;
 	padding: 39px 15px 20px 15px;
 	box-shadow: 0 2px 16px rgba(60, 80, 100, 0.09);
-	background: #fff;
+	background: var(--ui-surface);
 	box-sizing: border-box;
 	display: flex;
 	flex-direction: column;
@@ -54,7 +77,7 @@ body {
 	right: 16px;
 	background: none;
 	border: 0px;
-	color: #666;
+	color: var(--ui-text-secondary);
 	width: 40px;
 	height: 40px;
 	border-radius: 50%;
@@ -80,9 +103,9 @@ body {
 }
 
 .help-btn:hover {
-	background: #30a8f7;
-	border-color: #30a8f7;
-	color: #fff;
+	background: var(--ui-accent);
+	border-color: var(--ui-accent);
+	color: var(--ui-on-accent);
 }
 
 /* 帮助内容样式 / Help Content Styles */
@@ -91,7 +114,7 @@ body {
 	max-height: 400px;
 	overflow-y: auto;
 	padding: 0 20px 20px 20px;
-	color: #333;
+	color: var(--ui-text-strong);
 	line-height: 1.6;
 }
 
@@ -111,7 +134,7 @@ body {
 
 .help-section p {
 	font-size: 0.95rem;
-	color: #666;
+	color: var(--ui-text-secondary);
 	margin-bottom: 12px;
 	line-height: 1.5;
 }
@@ -119,7 +142,7 @@ body {
 .help-section ol,
 .help-section ul {
 	font-size: 0.9rem;
-	color: #666;
+	color: var(--ui-text-secondary);
 	margin-left: 16px;
 	margin-bottom: 12px;
 }
@@ -158,7 +181,7 @@ body {
 	/* max-width: 400px;
 	margin: 60px auto 0 auto;
 	padding: 32px 24px 24px 24px;
-	background: #fff;
+	background: var(--ui-surface);
 	border-radius: 14px;
 	box-shadow: 0 2px 16px rgba(60, 80, 100, 0.09); */
     display: flex;
@@ -194,7 +217,7 @@ body {
 
 .input-group label:not(.floating-label) {
 	font-size: 0.98rem;
-	color: #888;
+	color: var(--ui-text-light);
 	margin-bottom: 6px;
 	margin-left: 2px;
 }
@@ -207,26 +230,27 @@ body {
 
 .input-group input {
 	width: 92%;
-	border: 1px solid #e5e5e5;
+	border: 1px solid var(--login-input-border);
 	border-radius: 10px;
 	padding: 14px 14px;
 	font-size: 1.1rem;
 	outline: none;
-	background: #fafbfc;
+	background: var(--login-input-bg);
+	color: var(--ui-text);
 	transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .input-group input:focus {
-	border-color: #30a8f7;
-	background: #fff;
-	box-shadow: 0 0 0 3px rgba(48, 168, 247, 0.1);
+	border-color: var(--ui-accent);
+	background: var(--ui-surface);
+	box-shadow: 0 0 0 3px var(--ui-accent-soft);
 }
 
 .login-btn {
 	margin-top: 20px;
-	background: #30a8f7;
+	background: var(--ui-accent);
 	border: none;
-	color: #fff;
+	color: var(--ui-on-accent);
 	font-size: 1.2rem;
 	font-weight: 500;
 	border-radius: 12px;
@@ -238,7 +262,7 @@ body {
 
 .login-btn:hover,
 .login-btn:focus {
-	background: #2196e3;
+	background: var(--login-btn-hover-bg);
 	box-shadow: 0 4px 12px rgba(48, 168, 247, 0.3);
 }
 
@@ -267,7 +291,7 @@ body {
 .login-modal-card {
 	position: relative;
 	z-index: 2;
-	background: #fff;
+	background: var(--ui-surface);
 	border-radius: 14px;
 	box-shadow: 0 2px 16px rgba(60, 80, 100, 0.13);
 	padding: 32px 24px 24px 24px;
@@ -280,6 +304,7 @@ body {
 	display: flex;
 	flex-direction: column;
 	gap: 18px;
+	background: var(--login-card-form-bg);
 }
 
 .login-modal-close {
@@ -289,7 +314,7 @@ body {
 	background: none;
 	border: none;
 	font-size: 1.7rem;
-	color: #888;
+	color: var(--ui-text-light);
 	cursor: pointer;
 	z-index: 3;
 	line-height: 1;
@@ -297,7 +322,7 @@ body {
 }
 
 .login-modal-close:hover {
-	color: #30a8f7;
+	color: var(--ui-accent);
 }
 
 .avatar {
@@ -397,7 +422,7 @@ body {
 
 .img-modal-close:hover {
 	background: rgba(80, 80, 80, 0.25);
-	color: #fff;
+	color: var(--ui-surface);
 }
 
 .bubble.system {
@@ -450,7 +475,7 @@ body {
 
 .chat-attach-btn-abs:hover {
 	transform: translateY(-50%) scale(1.1);
-	color: #30a8f7;
+	color: var(--ui-accent);
 }
 
 .input-message-input-init {
@@ -486,7 +511,7 @@ body {
 .main-header-members {
 	margin-left: 10px;
 	font-size: 13px;
-	color: #888;
+	color: var(--ui-text-light);
 }
 
 .img-modal-content-overflow {
@@ -530,7 +555,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  fill: #fff;
+  fill: var(--ui-surface);
   transition: all 0.3s ease;
 }
 .send-message-btn:hover .text {
@@ -538,12 +563,6 @@ body {
 }
 .send-message-btn:active .text {
   transition: all 0.1s ease;
-}
-
-/* 确保发送按钮的点击区域不被其他元素遮挡 */
-.send-message-btn {
-  position: relative;
-  z-index: 10;
 }
 
 /* 确保发送按钮在所有父容器中都有足够的层级 */
@@ -559,31 +578,11 @@ body {
 }
 body[data-ui-theme="amoled"] {
 	background: #000 !important;
-	color: #fff !important;
-}
-
-body[data-ui-theme="amoled"] .help-btn:hover {
-	background: #ff8c00 !important;
-	border-color: #ff8c00 !important;
-	color: #fff !important;
-}
-
-body[data-ui-theme="amoled"] .login-btn {
-	background: #ff8c00 !important;
-	color: #fff !important;
-}
-
-body[data-ui-theme="amoled"] .login-btn:hover,
-body[data-ui-theme="amoled"] .login-btn:focus {
-	background: #ff9f2a !important;
-}
-
-body[data-ui-theme="amoled"] .input-group input,
-body[data-ui-theme="amoled"] .flip-card-front,
-body[data-ui-theme="amoled"] .flip-card-back {
-	background: #0b0b0b !important;
-	color: #fff !important;
-	border-color: #1f1f1f !important;
+	color: var(--ui-on-accent) !important;
+	--login-btn-hover-bg: #ff9f2a;
+	--login-input-bg: #0b0b0b;
+	--login-input-border: #1f1f1f;
+	--login-card-form-bg: #0b0b0b;
 }
 
 .security-modal-open {
@@ -593,7 +592,7 @@ body[data-ui-theme="amoled"] .flip-card-back {
 .security-modal-bg {
 	position: fixed;
 	inset: 0;
-	background: rgba(7, 13, 24, 0.62);
+	background: var(--security-modal-overlay);
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -603,51 +602,28 @@ body[data-ui-theme="amoled"] .flip-card-back {
 
 .security-modal-card {
 	width: min(560px, 96vw);
-	background: linear-gradient(160deg, #1b2435 0%, #111827 100%);
-	border: 1px solid rgba(255, 255, 255, 0.14);
+	background: var(--security-modal-card-bg);
+	border: 1px solid var(--security-modal-card-border);
 	border-radius: 18px;
-	box-shadow: 0 22px 60px rgba(0, 0, 0, 0.45);
-	color: #fff;
+	box-shadow: var(--security-modal-card-shadow);
+	color: var(--security-modal-card-color);
 	animation: securityModalIn .18s ease-out;
 }
 
-body[data-ui-theme="light"] .security-modal-bg {
-	background: rgba(15, 23, 42, 0.35);
-}
-
-body[data-ui-theme="light"] .security-modal-card {
-	background: #ffffff;
-	color: #1f2937;
-	border-color: rgba(15, 23, 42, 0.12);
-	box-shadow: 0 20px 45px rgba(15, 23, 42, 0.18);
-}
-
-body[data-ui-theme="light"] .security-modal-body p {
-	color: #334155;
-}
-
-body[data-ui-theme="light"] .security-modal-details {
-	background: #f8fafc;
-	border-color: #dbe2ea;
-	color: #0f172a;
-}
-
-body[data-ui-theme="light"] .security-modal-btn-secondary {
-	background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-	color: #fff;
-	box-shadow: 0 8px 24px rgba(220, 38, 38, 0.35);
-}
-
-body[data-ui-theme="light"] .security-modal-btn-secondary:hover {
-	opacity: .94;
-}
-
-body[data-ui-theme="amoled"] .login-modal-card,
-body[data-ui-theme="amoled"] .login-modal-card form,
-body[data-ui-theme="amoled"] .login-modal-card .input-group input {
-	background: #0b0b0b !important;
-	color: #fff !important;
-	border-color: #1f1f1f !important;
+body[data-ui-theme="light"] {
+	--security-modal-overlay: rgba(15, 23, 42, 0.35);
+	--security-modal-card-bg: #ffffff;
+	--security-modal-card-color: #1f2937;
+	--security-modal-card-border: rgba(15, 23, 42, 0.12);
+	--security-modal-card-shadow: 0 20px 45px rgba(15, 23, 42, 0.18);
+	--security-modal-body-color: #334155;
+	--security-modal-details-bg: #f8fafc;
+	--security-modal-details-border: #dbe2ea;
+	--security-modal-details-color: #0f172a;
+	--security-modal-btn-secondary-bg: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+	--security-modal-btn-secondary-hover-bg: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+	--security-modal-btn-secondary-color: #ffffff;
+	--security-modal-btn-secondary-shadow: 0 8px 24px rgba(220, 38, 38, 0.35);
 }
 
 .security-modal-card-danger {
@@ -673,14 +649,14 @@ body[data-ui-theme="amoled"] .login-modal-card .input-group input {
 .security-modal-body p {
 	margin: 0 0 12px;
 	line-height: 1.5;
-	color: rgba(255, 255, 255, 0.95);
+	color: var(--security-modal-body-color);
 }
 
 .security-modal-details {
 	margin: 0;
 	padding: 12px;
-	background: rgba(0, 0, 0, 0.32);
-	border: 1px solid rgba(255, 255, 255, 0.16);
+	background: var(--security-modal-details-bg);
+	border: 1px solid var(--security-modal-details-border);
 	border-radius: 12px;
 	max-height: 200px;
 	overflow: auto;
@@ -688,7 +664,7 @@ body[data-ui-theme="amoled"] .login-modal-card .input-group input {
 	word-break: break-word;
 	font-size: 12px;
 	line-height: 1.4;
-	color: #dbeafe;
+	color: var(--security-modal-details-color);
 }
 
 .security-modal-actions {
@@ -710,7 +686,7 @@ body[data-ui-theme="amoled"] .login-modal-card .input-group input {
 
 .security-modal-btn-primary {
 	background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-	color: #fff;
+	color: var(--ui-surface);
 	box-shadow: 0 8px 24px rgba(37, 99, 235, 0.35);
 }
 
@@ -719,12 +695,13 @@ body[data-ui-theme="amoled"] .login-modal-card .input-group input {
 }
 
 .security-modal-btn-secondary {
-	background: rgba(255, 255, 255, 0.12);
-	color: #fff;
+	background: var(--security-modal-btn-secondary-bg);
+	color: var(--security-modal-btn-secondary-color);
+	box-shadow: var(--security-modal-btn-secondary-shadow);
 }
 
 .security-modal-btn-secondary:hover {
-	background: rgba(255, 255, 255, 0.18);
+	background: var(--security-modal-btn-secondary-hover-bg);
 }
 
 @keyframes securityModalIn {
