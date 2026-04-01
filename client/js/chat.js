@@ -408,11 +408,10 @@ function renderFileMessage(fileData, isSender) {
 			statusText = `Receiving ${transfer.receivedVolumes.size}/${transfer.totalVolumes}`;
 			showProgress = true;
 		} else if (transfer.status === 'completed') {
-			// 完成时不显示任何状态，只显示下载按钮
-			downloadBtnStyle = isSender ? 'display: none;' : 'display: flex;';
+			downloadBtnStyle = 'display: flex;';
 		}	} else if (isSender) {
 		// 发送方历史消息，不显示状态和下载按钮
-		downloadBtnStyle = 'display: none;';
+		downloadBtnStyle = 'display: flex;';
 	} else {
 		// 接收方历史消息，直接显示下载按钮（带动画效果）
 		downloadBtnStyle = 'display: flex;';

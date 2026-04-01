@@ -9,6 +9,12 @@
 	--ui-accent: #30a8f7;
 	--ui-accent-strong: #7bc0ff;
 	--ui-shadow: #e0e0e0a0;
+	--ui-overlay: rgba(0, 0, 0, 0.5);
+	--ui-radius-sm: 6px;
+	--ui-radius-md: 8px;
+	--ui-radius-lg: 12px;
+	--ui-danger: #dc3545;
+	--ui-upload-muted: #6c757d;
  }
 
 body {
@@ -811,9 +817,40 @@ flex-direction: column;
 }
 
 .chat-emoji-btn:hover {
-	color: #007bff;
-	background: #f5f5f5;
+	color: var(--ui-accent);
+	background: var(--ui-surface-2);
 	border-radius: 50%;
+}
+
+emoji-picker {
+	--background: var(--ui-surface);
+	--border-color: var(--ui-border);
+	--input-border-color: var(--ui-border-soft);
+	--button-hover-background: var(--ui-surface-2);
+	--indicator-color: var(--ui-accent);
+}
+
+.emoji-menu,
+.favorites.emoji-menu {
+	scrollbar-width: thin;
+	scrollbar-color: var(--ui-accent) var(--ui-surface-2);
+}
+
+.emoji-menu::-webkit-scrollbar,
+.favorites.emoji-menu::-webkit-scrollbar {
+	width: 8px;
+}
+
+.emoji-menu::-webkit-scrollbar-track,
+.favorites.emoji-menu::-webkit-scrollbar-track {
+	background: var(--ui-surface-2);
+	border-radius: 8px;
+}
+
+.emoji-menu::-webkit-scrollbar-thumb,
+.favorites.emoji-menu::-webkit-scrollbar-thumb {
+	background: color-mix(in srgb, var(--ui-accent) 60%, var(--ui-surface));
+	border-radius: 8px;
 }
 
 .chat-emoji-btn:active {
@@ -1251,6 +1288,39 @@ flex-direction: column;
 	fill: currentColor;
 }
 
+.file-inline-preview {
+	display: none;
+	margin: 6px 3px 8px;
+	border-radius: var(--ui-radius-md);
+	overflow: hidden;
+	background: var(--ui-surface-2);
+	max-width: 100%;
+}
+
+.file-inline-preview-media,
+.file-inline-preview-pdf {
+	width: 100%;
+	max-height: 280px;
+	display: block;
+}
+
+.file-inline-preview-audio {
+	width: 100%;
+	padding: 8px;
+	box-sizing: border-box;
+}
+
+.file-inline-preview-text {
+	margin: 0;
+	padding: 10px 12px;
+	max-height: 220px;
+	overflow: auto;
+	white-space: pre-wrap;
+	word-break: break-word;
+	font-size: 12px;
+	color: var(--ui-text);
+}
+
 .file-download-btn:hover {
 	background: linear-gradient(135deg, #2196f3, #42a5f5);
 	transform: translateY(-2px);
@@ -1382,7 +1452,7 @@ flex-direction: column;
 	left: 0;
 	right: 0;
 	bottom: 0;
-	background: rgba(0, 0, 0, 0.5);
+	background: var(--ui-overlay);
 }
 
 .file-upload-container {
@@ -1390,8 +1460,8 @@ flex-direction: column;
 	top: 50%;
 	left: 50%;
 	transform: translate(-50%, -50%);
-	background: #fff;
-	border-radius: 12px;
+	background: var(--ui-surface);
+	border-radius: var(--ui-radius-lg);
 	box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
 	width: 90%;
 	max-width: 600px;
@@ -1405,21 +1475,21 @@ flex-direction: column;
 	align-items: center;
 	justify-content: space-between;
 	padding: 20px 24px;
-	border-bottom: 1px solid #e0e0e0;
+	border-bottom: 1px solid var(--ui-border);
 }
 
 .file-upload-header h3 {
 	margin: 0;
 	font-size: 18px;
 	font-weight: 600;
-	color: #333;
+	color: var(--ui-text);
 }
 
 .file-upload-close {
 	background: none;
 	border: none;
 	font-size: 24px;
-	color: #666;
+	color: var(--ui-text-muted);
 	cursor: pointer;
 	padding: 0;
 	width: 32px;
@@ -1432,7 +1502,7 @@ flex-direction: column;
 }
 
 .file-upload-close:hover {
-	background: #f5f5f5;
+	background: var(--ui-surface-2);
 }
 
 .file-upload-content {
@@ -1442,12 +1512,12 @@ flex-direction: column;
 }
 
 .file-drop-zone {
-	border: 2px dashed #ddd;
-	border-radius: 8px;
+	border: 2px dashed var(--ui-border-soft);
+	border-radius: var(--ui-radius-md);
 	padding: 40px 20px;
 	text-align: center;
 	transition: all 0.3s ease;
-	background: #fafafa;
+	background: var(--ui-surface-2);
 	display: flex;
 	flex-direction: column;
 	align-items: center;
@@ -1457,8 +1527,8 @@ flex-direction: column;
 
 .file-drop-zone:hover,
 .file-drop-zone.drag-over {
-	border-color: #007bff;
-	background: #f0f8ff;
+	border-color: var(--ui-accent);
+	background: color-mix(in srgb, var(--ui-accent) 12%, var(--ui-surface));
 }
 
 .file-drop-icon {
@@ -1469,18 +1539,18 @@ flex-direction: column;
 
 .file-drop-text p {
 	margin: 8px 0;
-	color: #666;
+	color: var(--ui-text-muted);
 }
 
 .file-drop-text p:first-child {
 	font-size: 16px;
-	color: #333;
+	color: var(--ui-text);
 }
 
 .file-browse-btn {
 	background: none;
 	border: none;
-	color: #007bff;
+	color: var(--ui-accent);
 	cursor: pointer;
 	text-decoration: underline;
 	font-size: inherit;
@@ -1488,7 +1558,7 @@ flex-direction: column;
 }
 
 .file-browse-btn:hover {
-	color: #0056b3;
+	color: var(--ui-accent-strong);
 }
 
 .file-list-container {
@@ -1501,28 +1571,28 @@ flex-direction: column;
 	justify-content: space-between;
 	margin-bottom: 16px;
 	padding-bottom: 12px;
-	border-bottom: 1px solid #e0e0e0;
+	border-bottom: 1px solid var(--ui-border);
 }
 
 .file-list-title {
 	font-weight: 600;
-	color: #333;
+	color: var(--ui-text);
 }
 
 .file-clear-all-btn {
 	background: none;
-	border: 1px solid #dc3545;
-	color: #dc3545;
+	border: 1px solid var(--ui-danger);
+	color: var(--ui-danger);
 	padding: 6px 12px;
-	border-radius: 4px;
+	border-radius: var(--ui-radius-sm);
 	cursor: pointer;
 	font-size: 12px;
 	transition: all 0.2s ease;
 }
 
 .file-clear-all-btn:hover {
-	background: #dc3545;
-	color: #fff;
+	background: var(--ui-danger);
+	color: var(--ui-surface);
 }
 
 .file-list {
@@ -1536,14 +1606,41 @@ flex-direction: column;
 	align-items: center;
 	justify-content: space-between;
 	padding: 12px;
-	background: #f8f9fa;
-	border-radius: 6px;
+	background: var(--ui-surface-2);
+	border-radius: var(--ui-radius-sm);
 	margin-bottom: 8px;
 	transition: background-color 0.2s ease;
 }
 
 .file-item:hover {
-	background: #e9ecef;
+	background: color-mix(in srgb, var(--ui-surface-2) 75%, var(--ui-accent) 25%);
+}
+
+.is-hidden {
+	display: none !important;
+}
+
+.file-item-preview {
+	width: 52px;
+	height: 52px;
+	border-radius: var(--ui-radius-sm);
+	background: var(--ui-bg);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	overflow: hidden;
+	margin-right: 12px;
+	flex-shrink: 0;
+}
+
+.file-item-preview-media {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.file-item-preview-icon {
+	font-size: 24px;
 }
 
 .file-item-info {
@@ -1553,7 +1650,7 @@ flex-direction: column;
 
 .file-item-name {
 	font-weight: 500;
-	color: #333;
+	color: var(--ui-text);
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -1562,13 +1659,13 @@ flex-direction: column;
 
 .file-item-size {
 	font-size: 12px;
-	color: #666;
+	color: var(--ui-text-muted);
 }
 
 .file-item-remove {
 	background: none;
 	border: none;
-	color: #dc3545;
+	color: var(--ui-danger);
 	cursor: pointer;
 	padding: 4px;
 	border-radius: 50%;
@@ -1583,14 +1680,14 @@ flex-direction: column;
 }
 
 .file-item-remove:hover {
-	background: rgba(220, 53, 69, 0.1);
+	background: color-mix(in srgb, var(--ui-danger) 10%, transparent);
 }
 
 .file-list-summary {
 	padding: 12px;
-	background: #e3f2fd;
-	border-radius: 6px;
-	color: #1976d2;
+	background: color-mix(in srgb, var(--ui-accent) 15%, var(--ui-surface));
+	border-radius: var(--ui-radius-sm);
+	color: var(--ui-accent);
 	font-size: 14px;
 	text-align: center;
 }
@@ -1600,13 +1697,13 @@ flex-direction: column;
 	justify-content: flex-end;
 	gap: 12px;
 	padding: 20px 24px;
-	border-top: 1px solid #e0e0e0;
+	border-top: 1px solid var(--ui-border);
 }
 
 .file-upload-cancel-btn,
 .file-upload-send-btn {
 	padding: 10px 24px;
-	border-radius: 6px;
+	border-radius: var(--ui-radius-sm);
 	border: none;
 	cursor: pointer;
 	font-weight: 500;
@@ -1614,8 +1711,8 @@ flex-direction: column;
 }
 
 .file-upload-cancel-btn {
-	background: #f8f9fa;
-	color: #6c757d;
+	background: var(--ui-surface-2);
+	color: var(--ui-upload-muted);
 	border: 1px solid #dee2e6;
 }
 
@@ -1624,16 +1721,16 @@ flex-direction: column;
 }
 
 .file-upload-send-btn {
-	background: #007bff;
-	color: #fff;
+	background: var(--ui-accent);
+	color: var(--ui-surface);
 }
 
 .file-upload-send-btn:hover:not(:disabled) {
-	background: #0056b3;
+	background: var(--ui-accent-strong);
 }
 
 .file-upload-send-btn:disabled {
-	background: #6c757d;
+	background: var(--ui-upload-muted);
 	cursor: not-allowed;
 	opacity: 0.6;
 }
@@ -2043,4 +2140,14 @@ body[data-ui-theme="amoled"] .progress-fill {
 body[data-ui-theme="amoled"] .input-message-input,
 body[data-ui-theme="amoled"] .input-group input {
 	color: #fff !important;
+}
+
+body[data-ui-theme="amoled"] .emoji-menu::-webkit-scrollbar-track,
+body[data-ui-theme="amoled"] .favorites.emoji-menu::-webkit-scrollbar-track {
+	background: #121212;
+}
+
+body[data-ui-theme="amoled"] .emoji-menu::-webkit-scrollbar-thumb,
+body[data-ui-theme="amoled"] .favorites.emoji-menu::-webkit-scrollbar-thumb {
+	background: color-mix(in srgb, var(--ui-accent) 70%, #121212);
 }
