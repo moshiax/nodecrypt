@@ -545,16 +545,6 @@ function initSettings() {
 	});
 }
 
-// Maximum notification text length
-// 通知文本最大长度
-const MAX_NOTIFY_TEXT_LEN = 100;
-
-// Truncate text for notifications
-// 截断通知文本
-function truncateText(text) {
-	return text.length > MAX_NOTIFY_TEXT_LEN ? text.slice(0, MAX_NOTIFY_TEXT_LEN) + '...' : text
-}
-
 // Play sound notification
 // 播放声音通知
 function playSoundNotification() {
@@ -580,22 +570,8 @@ function playSoundNotification() {
 // 显示桌面通知
 function showDesktopNotification(roomName, text, msgType, sender) {
 	if (!('Notification' in window) || Notification.permission !== 'granted') return;
-	let body;
-	const senderPrefix = sender ? `${sender}:` : '';	if (msgType === 'image' || msgType === 'private image') {
-		body = `${senderPrefix}${t('notification.image', '[image]')}`;
-		if (msgType === 'private image') {
-			body = `${t('notification.private', '(Private)')}${body}`
-		}
-	} else if (msgType === 'text' || msgType === 'private text') {
-		body = `${senderPrefix}${truncateText(text)}`;
-		if (msgType === 'private text') {
-			body = `${t('notification.private', '(Private)')}${body}`
-		}
-	} else {
-		body = truncateText(text)
-	}
 	new Notification(`#${roomName}`, {
-		body
+		body: t('notification.new_message')
 	})
 }
 

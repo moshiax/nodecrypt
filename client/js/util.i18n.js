@@ -68,8 +68,7 @@ const LANGUAGES = {
 			'notification.alert_here': 'You will receive alerts here.',
 			'notification.not_supported': 'Notifications are not supported by your browser.',
 			'notification.allow_browser': 'Please allow notifications in your browser settings.',
-			'notification.image': '[image]',
-			'notification.private': '(Private)',
+			'notification.new_message': 'You got a new message!',
 			
 			// Actions and menu
 			'action.share': 'Share',
@@ -208,8 +207,7 @@ const LANGUAGES = {
 			'notification.alert_here': '您将在此处收到通知。',
 			'notification.not_supported': '您的浏览器不支持通知功能。',
 			'notification.allow_browser': '请在浏览器设置中允许通知。',
-			'notification.image': '[图片]',
-			'notification.private': '（私信）',
+			'notification.new_message': '您收到一条新消息！',
 			
 			// Actions and menu
 			'action.share': '分享',
