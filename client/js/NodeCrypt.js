@@ -2,8 +2,8 @@
 // NodeCrypt 安全聊天的核心加密客户端
 
 import {
-	sha256
-} from 'js-sha256';
+	sha256Hex
+} from './util.crypto.js';
 import {
 	formatFingerprintColon
 } from './util.avatar.js';
@@ -130,8 +130,8 @@ class NodeCrypt {
 		return new Uint8Array(derivedBits);
 	}
 
-	getKeyMeta(publicKeyHex) {
-		const keyHash = sha256(String(publicKeyHex));
+	async getKeyMeta(publicKeyHex) {
+		const keyHash = await sha256Hex(String(publicKeyHex));
 		return {
 			publicKey: publicKeyHex,
 			fingerprint: formatFingerprintColon(keyHash, 16)
@@ -266,7 +266,7 @@ class NodeCrypt {
 	async setCredentials(username, channel, password) {
 		this.logEvent('setCredentials');
 		try {
-			const channelHash = sha256(channel);
+			const channelHash = await sha256Hex(channel);
 			const passwordKey = await this.deriveRoomPasswordKey(password, channelHash);
 			this.credentials = {
 				username: username,
@@ -298,8 +298,11 @@ class NodeCrypt {
 		this.channel = {};
 		this.identityKeys = this.clientEc ? this.clientEc.genKeyPair() : null;
 		this.identityPublicHex = this.identityKeys ? this.identityKeys.getPublic('hex') : '';
-		const identityMeta = this.getKeyMeta(this.identityPublicHex);
-		this.identityFingerprint = identityMeta.fingerprint;
+		this.getKeyMeta(this.identityPublicHex).then((identityMeta) => {
+			this.identityFingerprint = identityMeta.fingerprint;
+		}).catch((error) => {
+			this.logEvent('connect-get-key-meta', error, 'error');
+		});
 		this.lastOutboundAt = 0;
 		try {
 			this.connection = new WebSocket(this.config.wsAddress);
@@ -346,10 +349,12 @@ class NodeCrypt {
 		this.connection.onmessage = null;
 		this.connection.onerror = null;
 		this.connection.onclose = null;
-		try {
-			this.connection.removeAllListeners()
-		} catch (error) {
-			this.logEvent('destruct', error, 'error')
+		if (this.connection && typeof this.connection.removeAllListeners === 'function') {
+			try {
+				this.connection.removeAllListeners()
+			} catch (error) {
+				this.logEvent('destruct', error, 'error')
+			}
 		}
 		try {
 			this.connection.close()
@@ -514,7 +519,7 @@ class NodeCrypt {
 						c: serverDecrypted.c
 					}, this.serverShared))
 				}
-				const peerMeta = this.getKeyMeta(serverDecrypted.p);
+				const peerMeta = await this.getKeyMeta(serverDecrypted.p);
 				this.channel[serverDecrypted.c].publicKey = peerMeta.publicKey;
 				this.channel[serverDecrypted.c].fingerprint = peerMeta.fingerprint;
 				const ecdhSecret = this.channel[serverDecrypted.c].keys.derive(this.clientEc.keyFromPublic(serverDecrypted.p, 'hex').getPublic()).toArrayLike(Buffer, 'be', 32);

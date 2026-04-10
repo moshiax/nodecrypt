@@ -2,8 +2,13 @@
 // NodeCrypt 网页客户端的房间管理逻辑
 
 import {
-	getColor
+	getColor,
+	formatFingerprintColon,
+	createAvatarSVG
 } from './util.avatar.js';
+import {
+	sha256Hex
+} from './util.crypto.js';
 import {
 	renderChatArea,
 	addSystemMsg,
@@ -43,7 +48,8 @@ export function getNewRoomData() {
 		privateChatTargetName: null,
 		localPublicKey: '',
 		localFingerprint: '',
-		localUserColor: ''
+		localUserColor: '',
+		roomFingerprint: ''
 	}
 }
 
@@ -52,6 +58,24 @@ function decorateUser(user) {
 	const fingerprint = String(user.fingerprint);
 	user.userColor = getColor(fingerprint);
 	return user;
+}
+
+
+async function refreshRoomFingerprint(rd) {
+	if (!rd) return;
+	const allFingerprints = [];
+	if (rd.localFingerprint) allFingerprints.push(String(rd.localFingerprint));
+	for (const user of (rd.userList || [])) {
+		if (user && user.fingerprint) allFingerprints.push(String(user.fingerprint));
+	}
+	const sorted = allFingerprints.sort((a, b) => a.localeCompare(b));
+	const digestInput = sorted.join('');
+	if (!digestInput) {
+		rd.roomFingerprint = '';
+		return;
+	}
+	const roomHash = await sha256Hex(digestInput);
+	rd.roomFingerprint = formatFingerprintColon(roomHash, 16);
 }
 
 // Switch to another room by index
@@ -83,7 +107,10 @@ export function renderRooms(activeId = 0) {
 		if (rd.unreadCount && i !== activeId) {
 			unreadHtml = `<span class="room-unread-badge">${rd.unreadCount>99?'99+':rd.unreadCount}</span>`
 		}
-		div.innerHTML = `<div class="info"><div class="title">#${safeRoomName}</div></div>${unreadHtml}`;
+		const roomSeed = rd.roomFingerprint || rd.roomName;
+		const safeRoomFingerprint = escapeHTML(rd.roomFingerprint || '');
+		const roomSvg = createAvatarSVG(roomSeed).replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+		div.innerHTML = `<span class="avatar room-avatar" title="${safeRoomFingerprint}">${roomSvg}</span><div class="info"><div class="title">#${safeRoomName}</div></div>${unreadHtml}`;
 		roomList.appendChild(div)
 	})
 }
@@ -162,6 +189,12 @@ export function handleClientList(idx, list, selfId, localMeta = null) {
 		rd.userMap[u.clientId] = u
 	});
 	rd.myId = selfId;
+	refreshRoomFingerprint(rd).then(() => {
+		if (activeRoomIndex === idx) {
+			renderMainHeader();
+			renderRooms(activeRoomIndex);
+		}
+	});
 	if (activeRoomIndex === idx) {
 		renderUserList(false);
 		renderMainHeader()
@@ -186,6 +219,12 @@ export function handleClientSecured(idx, user) {
 	} else {
 		rd.userList[existingUserIndex] = user
 	}
+	refreshRoomFingerprint(rd).then(() => {
+		if (activeRoomIndex === idx) {
+			renderMainHeader();
+			renderRooms(activeRoomIndex);
+		}
+	});
 	if (activeRoomIndex === idx) {
 		renderUserList(false);
 		renderMainHeader()
@@ -230,6 +269,12 @@ export function handleClientLeft(idx, clientId) {
 	if (activeRoomIndex === idx) addSystemMsg(msg, true);
 	rd.userList = rd.userList.filter(u => u.clientId !== clientId);
 	delete rd.userMap[clientId];
+	refreshRoomFingerprint(rd).then(() => {
+		if (activeRoomIndex === idx) {
+			renderMainHeader();
+			renderRooms(activeRoomIndex);
+		}
+	});
 	if (activeRoomIndex === idx) {
 		renderUserList(false);
 		renderMainHeader()
