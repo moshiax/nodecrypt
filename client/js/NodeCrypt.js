@@ -1,21 +1,12 @@
 ﻿// NodeCrypt core cryptographic client for secure chat
 // NodeCrypt 安全聊天的核心加密客户端
 
-import {
-	sha256Hex
-} from './util.crypto.js';
-import {
-	formatFingerprintColon
-} from './util.avatar.js';
-import {
-	t
-} from './util.i18n.js';
-import {
-	ec as elliptic
-} from 'elliptic';
-import {
-	Buffer
-} from 'buffer';
+import { sha256Hex } from './util.crypto.js';
+import { formatFingerprintColon } from './util.avatar.js';
+import { t } from './util.i18n.js';
+
+import { x25519 } from '@noble/curves/ed25519'
+import { Buffer } from "buffer";
 window.Buffer = Buffer;
 
 // Main NodeCrypt class for secure communication
@@ -40,11 +31,6 @@ class NodeCrypt {
 			onClientList: callbacks.onClientList || null,
 			onClientMessage: callbacks.onClientMessage || null,
 		};
-		try {
-			this.clientEc = new elliptic('curve25519')
-		} catch (error) {
-			this.logEvent('constructor', error, 'error')
-		}
 		this.serverKeys = null;
 		this.serverShared = null;
 		this.serverMasterKey = null;
@@ -84,6 +70,20 @@ class NodeCrypt {
 		this.decryptServerMessage = this.decryptServerMessage.bind(this);
 		this.encryptClientMessage = this.encryptClientMessage.bind(this);
 		this.decryptClientMessage = this.decryptClientMessage.bind(this)
+	}
+
+	generateIdentityKeyPair() {
+		const privateKey = x25519.utils.randomPrivateKey();
+		const publicKey = x25519.getPublicKey(privateKey);
+		return {
+			privateKey,
+			publicKey,
+			publicKeyHex: Buffer.from(publicKey).toString('hex')
+		}
+	}
+
+	deriveIdentitySharedSecret(peerPublicHex) {
+		return x25519.getSharedSecret(this.identityKeys.privateKey, this.hexToBytes(peerPublicHex))
 	}
 
 	async deriveRoomPasswordKey(password, channelHash) {
@@ -306,8 +306,8 @@ class NodeCrypt {
 		this.trustRejected = false;
 		this.pendingServerHandshakePacket = null;
 		this.channel = {};
-		this.identityKeys = this.clientEc ? this.clientEc.genKeyPair() : null;
-		this.identityPublicHex = this.identityKeys ? this.identityKeys.getPublic('hex') : '';
+		this.identityKeys = this.generateIdentityKeyPair();
+		this.identityPublicHex = this.identityKeys.publicKeyHex;
 		this.getKeyMeta(this.identityPublicHex).then((identityMeta) => {
 			this.identityFingerprint = identityMeta.fingerprint;
 		}).catch((error) => {
@@ -351,7 +351,6 @@ class NodeCrypt {
 		this.callbacks.onClientSecured = null;
 		this.callbacks.onClientList = null;
 		this.callbacks.onClientMessage = null;
-		this.clientEc = null;
 		this.serverKeys = null;
 		this.serverShared = null;
 		this.serverMasterKey = null;
@@ -478,7 +477,6 @@ class NodeCrypt {
 					if (!this.channel[clientId]) {
 						this.channel[clientId] = {
 							username: null,
-							keys: this.identityKeys,
 							publicKey: '',
 							fingerprint: '',
 							shared: null,
@@ -526,7 +524,6 @@ class NodeCrypt {
 				if (!this.channel[serverDecrypted.c]) {
 					this.channel[serverDecrypted.c] = {
 						username: null,
-						keys: this.identityKeys,
 						publicKey: '',
 						fingerprint: '',
 						shared: null,
@@ -540,7 +537,7 @@ class NodeCrypt {
 				const peerMeta = await this.getKeyMeta(serverDecrypted.p);
 				this.channel[serverDecrypted.c].publicKey = peerMeta.publicKey;
 				this.channel[serverDecrypted.c].fingerprint = peerMeta.fingerprint;
-				const ecdhSecret = this.channel[serverDecrypted.c].keys.derive(this.clientEc.keyFromPublic(serverDecrypted.p, 'hex').getPublic()).toArrayLike(Buffer, 'be', 32);
+				const ecdhSecret = this.deriveIdentitySharedSecret(serverDecrypted.p);
 				const peerKey = await this.derivePeerSharedKey(new Uint8Array(ecdhSecret), this.credentials.passwordKey, this.credentials.channel);
 				if (!peerKey) {
 					return

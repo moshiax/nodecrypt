@@ -123,7 +123,7 @@ sequenceDiagram
 ## 🛠️ Technical Implementation
 
 - **Web Cryptography API**: Native browser encryption implementation with hardware acceleration
-- **elliptic.js**: Elliptic curve cryptography library implementing Curve25519 and P-384
+- **@noble/curves (x25519)**: Modern audited Curve25519 implementation for inter-client ECDH
 - **Web Crypto AES-GCM/HKDF/PBKDF2/RSA-PSS**: Standard primitives provided by browser and Worker runtimes
 - **js-sha256**: SHA-256 hash algorithm implementation
 
@@ -143,6 +143,27 @@ All encryption-related code is completely open source, using standard cryptograp
 - **Use Strong Room Passwords**: Room passwords directly affect end-to-end encryption strength; complex passwords are recommended
 - **Password Confidentiality**: If a room password is leaked, all communication content in that room may be decrypted
 - **Use Latest Modern Browsers**: Ensure security and performance of cryptographic APIs
+
+## 🧭 Trust Model & Risk Scenarios
+
+### If you use a trusted NodeCrypt server over `wss://`
+- Under this model, the channel is considered secure for normal operation.
+
+### If you use an untrusted NodeCrypt server (not recommended), key risks are:
+1. **Client deployed from untrusted server**  
+   If you load the web client hosted by the untrusted server, it can poison client files.
+2. **MITM risk for local client + remote untrusted server**  
+   Even when running a local client build, an untrusted server can attempt identity/key substitution attacks.  
+   You should verify via a secure out-of-band channel:
+   - avatars and nickname colors (derived from user fingerprints), or
+   - room avatar/fingerprint (derived from concatenation of all room-member fingerprints), or
+   - each participant public-key fingerprint.  
+   If these match across users, MITM is not being performed by the server.
+3. **Metadata exposure (always true for server operator)**  
+   The server can always observe your IP and the IPs of peers you communicate with.
+
+### Media preview risks:
+If you haven't disabled media preview in settings, YouTube might know about YouTube videos in chat.
 
 ## 🤝 Security Contributions
 
