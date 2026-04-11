@@ -32,6 +32,7 @@ import Plyr from 'plyr';
 import { PLYR_CONFIG } from './util.plyr.js';
 
 const youtubeRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]{11})/;
+const canUseYouTubeEmbed = typeof window !== 'undefined' && /^https?:$/.test(window.location.protocol);
 
 function arePreviewsEnabled() {
 	try {
@@ -51,6 +52,11 @@ function renderYouTubePreview(text = '') {
 	if (!arePreviewsEnabled()) return '';
 	const id = getYouTubeId(text);
 	if (!id) return '';
+
+	if (!canUseYouTubeEmbed) {
+		return `<div class="youtube-preview"><a href="https://www.youtube.com/watch?v=${id}" target="_blank" rel="noopener noreferrer">Open YouTube video</a></div>`;
+	}
+
 	return `<div class="youtube-preview"><div class="js-plyr" data-plyr-provider="youtube" data-plyr-embed-id="${id}"></div></div>`;
 }
 

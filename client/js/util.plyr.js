@@ -76,11 +76,12 @@ export const PLYR_CONFIG = {
 			transparent:      false                   // Vimeo embed config options.
 		},
 		youtube: {
-			noCookie:         true,                   // Use youtube-nocookie.com for GDPR compliance.
+			noCookie:         false,                  // Use youtube.com to avoid postMessage/origin mismatch in restricted contexts.
 			rel:              0,                      // Don’t show related videos.
 			showinfo:         0,                      // Deprecated by YouTube.
 			iv_load_policy:   3,                      // Hide annotations.
-			modestbranding:   1                       // Minimal YouTube branding.
+			modestbranding:   1,                      // Minimal YouTube branding.
+			enablejsapi:      1,                      // Keep JS API enabled for Plyr controls.
 		},
 		previewThumbnails: {
 			enabled:          false,                  // Enable preview thumbnails.
