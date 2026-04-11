@@ -38,6 +38,10 @@ jobs:
             zip -r ../artifact.zip .
           fi
 
+      - name: Run npm audit
+        run: |
+          npm audit >> audit.txt || true
+
       - name: Get commit info
         run: |
           echo "SHORT_SHA=${GITHUB_SHA::7}" >> $GITHUB_ENV
@@ -46,12 +50,19 @@ jobs:
           echo "COMMIT_SUMMARY=$COMMIT_SUMMARY" >> $GITHUB_ENV
           echo "COMMIT_BODY=$COMMIT_BODY" >> $GITHUB_ENV
 
+      - name: Combine release body
+        run: |
+          echo "${COMMIT_BODY:-$COMMIT_SUMMARY}" > release_body.txt
+          echo "" >> release_body.txt
+          echo "---" >> release_body.txt
+          cat audit.txt >> release_body.txt
+
       - name: Create GitHub Release
         uses: ncipollo/release-action@b7eabc95ff50cbeeedec83973935c8f306dfcd0b
         with:
           tag: ${{ env.SHORT_SHA }}
           name: "Release ${{ env.SHORT_SHA }} - ${{ env.COMMIT_SUMMARY }}"
-          body: ${{ env.COMMIT_BODY != '' && env.COMMIT_BODY || env.COMMIT_SUMMARY }}
+          bodyFile: release_body.txt
           draft: false
           prerelease: false
           artifacts: artifact,artifact.zip

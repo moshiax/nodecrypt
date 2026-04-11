@@ -35,6 +35,8 @@
     "dompurify": "^3.2.6",
     "elliptic": "^6.6.1",
     "emoji-picker-element": "^1.26.3",
-    "fflate": "^0.8.2"
+    "fflate": "^0.8.2",
+    "jdenticon": "^3.3.0",
+    "plyr": "^3.8.4"
   }
 }

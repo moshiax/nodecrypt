@@ -28,6 +28,8 @@ import {
 	t
 } from './util.i18n.js';
 import DOMPurify from 'dompurify';
+import Plyr from 'plyr';
+import { PLYR_CONFIG } from './util.plyr.js';
 
 const youtubeRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]{11})/;
 
@@ -53,11 +55,10 @@ function renderYouTubePreview(text = '') {
 }
 
 function initPlyrPlayers(root = document) {
-	if (!window.Plyr || !root || !root.querySelectorAll) return;
+	if (!root || !root.querySelectorAll) return;
 	root.querySelectorAll('.js-plyr').forEach((el) => {
 		if (el.dataset.plyrBound === '1') return;
-		const options = window.PLYR_CONFIG || window.plyrConfig || {};
-		new window.Plyr(el, options);
+		new Plyr(el, PLYR_CONFIG);
 		el.dataset.plyrBound = '1';
 	});
 }

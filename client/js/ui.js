@@ -25,7 +25,6 @@ import {
 import {
 	resolveServerWebSocketAddress,
 	buildRoomToken,
-	buildRoomLink,
 	parseRoomToken,
 	parseRoomTokenFromLocation,
 	loadRecentServers,
@@ -135,21 +134,26 @@ function executeMenuAction(action, closeMenuCallback) {
 function handleShareAction() {
 	const validation = validateRoomData(roomsData[activeRoomIndex]);
 	if (!validation.valid) {
-		window.addSystemMsg && window.addSystemMsg(`${t('action.cannot_share', 'Cannot share:')} ${validation.error}`);
+		window.addSystemMsg && window.addSystemMsg(`${t('action.cannot_share')} ${validation.error}`);
 		return;
 	}
 
 	const rd = roomsData[activeRoomIndex];
 	const roomName = rd.roomName.trim();
 	const password = rd.password || '';
+
 	const token = buildRoomToken({
 		server: rd.serverInput || location.origin,
 		masterKey: (rd.chat && rd.chat.serverMasterKey) ? rd.chat.serverMasterKey : '',
 		roomName,
 		password
 	});
-	const url = buildRoomLink(token);
-	copyToClipboard(url, t('action.share_copied', 'Share link copied!'), t('action.copy_url_failed', 'Copy failed, url:'));
+
+	copyToClipboard(
+		token,
+		t('action.share_copied'),
+		t('action.copy_token_failed')
+	);
 }
 
 // Handle exit action
@@ -565,6 +569,9 @@ function attachServerTokenAutofillListeners(formPrefix = '') {
 	};
 	serverInput.addEventListener('input', applyTokenFromValue);
 	serverInput.addEventListener('change', applyTokenFromValue);
+	serverInput.addEventListener('keyup', applyTokenFromValue);
+	serverInput.addEventListener('paste', () => setTimeout(applyTokenFromValue, 0));
+	serverInput.addEventListener('blur', applyTokenFromValue);
 	applyTokenFromValue();
 }
 
