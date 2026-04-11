@@ -84,7 +84,6 @@ import {	renderUserList,       // 渲染用户列表 / Render user list
 // Set global configuration parameters
 window.config = {
 	wsAddress: `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`, // WebSocket 服务器地址 / WebSocket server address
-	//wsAddress: `wss://crypt.works`,
 	debug: false,                     // 是否开启调试模式 / Enable debug mode
 	pingInterval: 45000               // 心跳间隔（毫秒） / Ping interval (ms)
 };
