@@ -19,6 +19,7 @@ const LANGUAGES = {
 			
 			// Login and main UI
 			'ui.enter_node': 'Enter a Node',
+			'ui.server': 'Server/Token',
 			'ui.username': 'Username',
 			'ui.node_name': 'Node Name',
 			'ui.node_password': 'Node Password',
@@ -107,6 +108,7 @@ const LANGUAGES = {
 			'security.fingerprint_new': 'New fingerprint',
 			'security.replace_trusted_key': 'Replace trusted key',
 			'security.keep_old_key': 'Keep old key',
+			'security.token_trust_prompt': 'This room token includes a server public key for {domain}. Trust and save it?',
 					// Help page
 			'help.title': 'User Guide',
 			'help.back_to_login': 'Back to Login',
@@ -158,6 +160,7 @@ const LANGUAGES = {
 			
 			// Login and main UI
 			'ui.enter_node': '进入新的节点',
+			'ui.server': '服务器/令牌',
 			'ui.username': '用户名',
 			'ui.node_name': '节点名称',
 			'ui.node_password': '节点密码',
@@ -246,6 +249,7 @@ const LANGUAGES = {
 			'security.fingerprint_new': '新指纹',
 			'security.replace_trusted_key': '替换已信任密钥',
 			'security.keep_old_key': '保留旧密钥',
+			'security.token_trust_prompt': '该房间令牌包含 {domain} 的服务器公钥。是否信任并保存？',
 			
 			// Help page
 			'help.title': '使用说明',

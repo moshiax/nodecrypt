@@ -527,12 +527,7 @@ body {
 
 
 .send-message-btn {
-  background: rgb(3, 169, 244);
-  background: linear-gradient(
-    138deg,
-    rgba(3, 169, 244, 1) 15%,
-    rgba(63, 180, 233, 1) 65%
-  );
+  background: var(--ui-accent);
   position: relative;
   cursor: pointer;
   font-size: 17px;

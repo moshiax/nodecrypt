@@ -467,11 +467,11 @@ flex-direction: column;
 }
 
 .room.active {
-	background: var(--ui-accent-strong);
+	background: var(--ui-accent-soft-strong);
 }
 
 .room.active:hover {
-	background: var(--ui-accent-strong);
+	background: var(--ui-accent-soft);
 }
 
 .room:hover:not(.active) {
@@ -485,6 +485,30 @@ flex-direction: column;
 .room .title {
 	font-weight: 500;
 	font-size: 16px;
+}
+
+
+.room .room-server {
+	font-size: 12px;
+	color: var(--ui-text-light);
+	margin-top: 2px;
+	overflow-wrap: anywhere;
+	word-break: break-word;
+	white-space: normal;
+}
+
+.room .room-proto {
+	font-size: 12px;
+	font-weight: 600;
+	margin-top: 1px;
+}
+
+.room .room-proto.room-proto-secure {
+	color: #2ecc71;
+}
+
+.room .room-proto.room-proto-insecure {
+	color: #f1c40f;
 }
 
 .room .lastmsg {
@@ -1070,6 +1094,7 @@ emoji-picker {
 }
 
 .rightbar-header {
+	background: var(--ui-bg);
 	padding: 20.27px 18px 24px 18px;
 	border-bottom: 1px solid var(--ui-border-soft);
 }

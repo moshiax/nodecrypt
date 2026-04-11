@@ -49,7 +49,10 @@ export function getNewRoomData() {
 		localPublicKey: '',
 		localFingerprint: '',
 		localUserColor: '',
-		roomFingerprint: ''
+		roomFingerprint: '',
+		serverInput: '',
+		serverHost: '',
+		wsProtocol: 'ws'
 	}
 }
 
@@ -110,18 +113,23 @@ export function renderRooms(activeId = 0) {
 		const roomSeed = rd.roomFingerprint || rd.roomName;
 		const safeRoomFingerprint = escapeHTML(rd.roomFingerprint || '');
 		const roomSvg = createAvatarSVG(roomSeed).replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-		div.innerHTML = `<span class="avatar room-avatar" title="${safeRoomFingerprint}">${roomSvg}</span><div class="info"><div class="title">#${safeRoomName}</div></div>${unreadHtml}`;
+		const safeServerHost = escapeHTML(rd.serverHost || '');
+		const protoClass = rd.wsProtocol === 'wss' ? 'room-proto-secure' : 'room-proto-insecure';
+		div.innerHTML = `<span class="avatar room-avatar" title="${safeRoomFingerprint}">${roomSvg}</span><div class="info"><div class="title">#${safeRoomName}</div><div class="room-server">${safeServerHost}</div><div class="room-proto ${protoClass}">${rd.wsProtocol}://</div></div>${unreadHtml}`;
 		roomList.appendChild(div)
 	})
 }
 
 // Join a room
 // 加入一个房间
-export async function joinRoom(userName, roomName, password, modal = null, onResult) {
+export async function joinRoom(userName, roomName, password, serverConfig, tokenMasterKey = '', modal = null, onResult) {
 	const newRd = getNewRoomData();
 	newRd.roomName = roomName;
 	newRd.myUserName = userName;
 	newRd.password = password;
+	newRd.serverInput = serverConfig.serverInput;
+	newRd.serverHost = serverConfig.displayHost;
+	newRd.wsProtocol = serverConfig.wsProtocol;
 	let closed = false;
 	let activated = false;
 	let idx = -1;
@@ -160,7 +168,7 @@ export async function joinRoom(userName, roomName, password, modal = null, onRes
 		onClientLeft: (clientId) => handleClientLeft(idx, clientId),
 		onClientMessage: (msg) => handleClientMessage(idx, msg),
 	};
-	chatInst = new window.NodeCrypt(window.config, callbacks);
+	chatInst = new window.NodeCrypt({ ...window.config, wsAddress: serverConfig.wsAddress, domainKey: serverConfig.domainKey, tokenMasterKey }, callbacks);
 	newRd.chat = chatInst;
 	await chatInst.setCredentials(userName, roomName, password);
 	chatInst.connect();

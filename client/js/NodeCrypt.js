@@ -30,6 +30,8 @@ class NodeCrypt {
 			reconnectDelay: config.reconnectDelay || 3000,
 			pingInterval: config.pingInterval || 20000,
 			debug: config.debug || false,
+			domainKey: config.domainKey || '',
+			tokenMasterKey: config.tokenMasterKey || ''
 		};
 		this.callbacks = {
 			onServerClosed: callbacks.onServerClosed || null,
@@ -54,6 +56,9 @@ class NodeCrypt {
 		this.reconnect = null;
 		this.ping = null;
 		this.lastOutboundAt = 0;
+		this.hasConnectedOnce = false;
+		this.disconnectRequested = false;
+		this.closeHandled = false;
 		this.channel = {};
 		this.identityKeys = null;
 		this.identityPublicHex = '';
@@ -157,6 +162,11 @@ class NodeCrypt {
 
 	getDomainTrustKey() {
 		try {
+			if (this.config.domainKey) return this.config.domainKey;
+			if (this.config.wsAddress) {
+				const wsUrl = new URL(this.config.wsAddress);
+				return wsUrl.host;
+			}
 			return (window && window.location && window.location.host) ? window.location.host : this.config.wsAddress
 		} catch (error) {
 			this.logEvent('getDomainTrustKey', error, 'error');
@@ -304,6 +314,8 @@ class NodeCrypt {
 			this.logEvent('connect-get-key-meta', error, 'error');
 		});
 		this.lastOutboundAt = 0;
+		this.disconnectRequested = false;
+		this.closeHandled = false;
 		try {
 			this.connection = new WebSocket(this.config.wsAddress);
 			this.connection.onopen = this.onOpen;
@@ -331,6 +343,8 @@ class NodeCrypt {
 			reconnectDelay: 3000,
 			pingInterval: 15000,
 			debug: false,
+			domainKey: '',
+			tokenMasterKey: ''
 		};
 		this.callbacks.onServerClosed = null;
 		this.callbacks.onServerSecured = null;
@@ -345,10 +359,12 @@ class NodeCrypt {
 		this.trustRejected = false;
 		this.pendingServerHandshakePacket = null;
 		this.credentials = null;
-		this.connection.onopen = null;
-		this.connection.onmessage = null;
-		this.connection.onerror = null;
-		this.connection.onclose = null;
+		if (this.connection) {
+			this.connection.onopen = null;
+			this.connection.onmessage = null;
+			this.connection.onerror = null;
+			this.connection.onclose = null;
+		}
 		if (this.connection && typeof this.connection.removeAllListeners === 'function') {
 			try {
 				this.connection.removeAllListeners()
@@ -374,6 +390,8 @@ class NodeCrypt {
 	// WebSocket 连接打开事件处理
 	async onOpen() {
 		this.logEvent('onOpen');
+		this.hasConnectedOnce = true;
+		this.closeHandled = false;
 		this.startPing();
 		try {
 			this.serverKeys = await crypto.subtle.generateKey({
@@ -639,25 +657,19 @@ class NodeCrypt {
 	// WebSocket 错误事件处理
 	async onError(event) {
 		this.logEvent('onError', event, 'error');
-		this.disconnect();
-		if (this.credentials && !this.trustRejected) {
-			this.startReconnect()
-		}
-		if (this.callbacks.onServerClosed) {
-			try {
-				this.callbacks.onServerClosed()
-			} catch (error) {
-				this.logEvent('onError-server-closed-callback', error, 'error')
-			}
-		}
 	}
 
 	// WebSocket close event handler
 	// WebSocket 关闭事件处理
 	async onClose(event) {
 		this.logEvent('onClose', event);
+		if (this.closeHandled) {
+			return
+		}
+		this.closeHandled = true;
+		const wasManualDisconnect = this.disconnectRequested;
 		this.disconnect();
-		if (this.credentials && !this.trustRejected) {
+		if (!wasManualDisconnect && this.hasConnectedOnce && this.credentials && !this.trustRejected) {
 			this.startReconnect()
 		}
 		if (this.callbacks.onServerClosed) {
@@ -742,6 +754,7 @@ class NodeCrypt {
 	// Disconnect from server
 	// 从服务器断开连接
 	disconnect() {
+		this.disconnectRequested = true;
 		this.stopReconnect();
 		this.stopPing();
 		if (!this.isClosed()) {
@@ -958,22 +971,27 @@ class NodeCrypt {
 		const domain = this.getDomainTrustKey();
 		const keyHex = payload.keyHex || Buffer.from(payload.key, 'base64').toString('hex');
 		const keyFingerprint = await this.getMasterKeyFingerprint(payload.key);
+
+		const tokenMasterKey = this.config.tokenMasterKey || '';
+		if (tokenMasterKey && tokenMasterKey !== payload.key) {
+			await this.createSecurityModal({
+				title: t('security.connection_blocked_title'),
+				message: t('security.connection_blocked_mismatch'),
+				confirmText: t('action.back'),
+				showCancel: false,
+				danger: true
+			});
+			return false;
+		}
 		const store = this.getDomainTrustStore();
 		const trusted = store[domain];
 		let accepted = false;
-
-		const url = new URL(window.location.href);
-		const urlMasterKey = url.searchParams.get('mk');
-		const trustedHash = keyFingerprint.hash;
-		if (urlMasterKey && trustedHash && urlMasterKey === trustedHash) {
-			accepted = true
-		}
 
 		if (!trusted) {
 			if (!accepted) {
 				accepted = await this.createSecurityModal({
 					title: t('security.verify_master_title'),
-					message: t('security.verify_master_message').replace('{domain}', domain),
+					message: (tokenMasterKey ? t('security.token_trust_prompt') : t('security.verify_master_message')).replace('{domain}', domain),
 					details: keyFingerprint.display || keyHex,
 					confirmText: t('security.trust_key'),
 					cancelText: t('security.do_not_trust'),
@@ -1017,10 +1035,6 @@ class NodeCrypt {
 		}
 
 		this.serverMasterKey = payload.key;
-		if (keyFingerprint.hash) {
-			url.searchParams.set('mk', keyFingerprint.hash);
-		}
-		window.history.replaceState({}, '', url.toString());
 		return true
 	}
 };
