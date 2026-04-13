@@ -96,10 +96,10 @@ sequenceDiagram
     
     Note over C,O: Phase 4: Inter-Client Key Exchange (Curve25519)
     Note over C: Generate Curve25519 key pair for each member
-    C->>S: Curve25519 Public Key Bundle (AES-256 encrypted)
-    S->>O: Forward Client C's public key
-    O->>S: Return other clients' Curve25519 public keys
-    S->>C: Forward other clients' public keys
+    C->>S: Password-encrypted Curve25519 key packet (inside transport AES-256 envelope)
+    S->>O: Forward opaque key packet
+    O->>S: Return password-encrypted key packet
+    S->>C: Forward opaque key packet
     
     Note over C,O: Phase 5: Password-Enhanced Key Derivation
     Note over C: Client Key = HKDF-SHA256(ECDH_Curve25519 || PBKDF2(password), salt=roomHash)
@@ -152,13 +152,6 @@ All encryption-related code is completely open source, using standard cryptograp
 ### If you use an untrusted NodeCrypt server (not recommended), key risks are:
 1. **Client deployed from untrusted server**  
    If you load the web client hosted by the untrusted server, it can poison client files.
-2. **MITM risk for local client + remote untrusted server**  
-   Even when running a local client build, an untrusted server can attempt identity/key substitution attacks.  
-   You should verify via a secure out-of-band channel:
-   - avatars and nickname colors (derived from user fingerprints), or
-   - room avatar/fingerprint (derived from concatenation of all room-member fingerprints), or
-   - each participant public-key fingerprint.  
-   If these match across users, MITM is not being performed by the server.
 3. **Metadata exposure (always true for server operator)**  
    The server can always observe your IP and the IPs of peers you communicate with.
 

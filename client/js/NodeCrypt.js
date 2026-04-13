@@ -135,6 +135,24 @@ class NodeCrypt {
 		return new Uint8Array(derivedBits);
 	}
 
+	isValidIdentityPublicKeyHex(value) {
+		return this.isString(value) && /^[0-9a-f]{64}$/i.test(value);
+	}
+
+	async parsePeerKeyPacket(payload) {
+		if (!this.credentials || !(this.credentials.passwordKey instanceof Uint8Array)) {
+			return '';
+		}
+		if (!this.isString(payload)) {
+			return '';
+		}
+		const clientDecrypted = await this.decryptClientMessage(payload, this.credentials.passwordKey);
+		if (!this.isObject(clientDecrypted) || clientDecrypted.a !== 'k' || !this.isValidIdentityPublicKeyHex(clientDecrypted.p)) {
+			return '';
+		}
+		return clientDecrypted.p.toLowerCase();
+	}
+
 	async getKeyMeta(publicKeyHex) {
 		const keyHash = await sha256Hex(String(publicKeyHex));
 		return {
@@ -481,7 +499,10 @@ class NodeCrypt {
 							fingerprint: '',
 							shared: null,
 						};
-						payloads[clientId] = this.identityPublicHex
+							payloads[clientId] = await this.encryptClientMessage({
+								a: 'k',
+								p: this.identityPublicHex
+							}, this.credentials.passwordKey)
 					}
 				}
 				if (Object.keys(payloads).length > 0) {
@@ -530,14 +551,21 @@ class NodeCrypt {
 					};
 					this.sendMessage(await this.encryptServerMessage({
 						a: 'c',
-						p: this.identityPublicHex,
+							p: await this.encryptClientMessage({
+								a: 'k',
+								p: this.identityPublicHex
+							}, this.credentials.passwordKey),
 						c: serverDecrypted.c
 					}, this.serverShared))
 				}
-				const peerMeta = await this.getKeyMeta(serverDecrypted.p);
+				const peerPublicHex = await this.parsePeerKeyPacket(serverDecrypted.p);
+				if (!peerPublicHex) {
+					return
+				}
+				const peerMeta = await this.getKeyMeta(peerPublicHex);
 				this.channel[serverDecrypted.c].publicKey = peerMeta.publicKey;
 				this.channel[serverDecrypted.c].fingerprint = peerMeta.fingerprint;
-				const ecdhSecret = this.deriveIdentitySharedSecret(serverDecrypted.p);
+				const ecdhSecret = this.deriveIdentitySharedSecret(peerPublicHex);
 				const peerKey = await this.derivePeerSharedKey(new Uint8Array(ecdhSecret), this.credentials.passwordKey, this.credentials.channel);
 				if (!peerKey) {
 					return
