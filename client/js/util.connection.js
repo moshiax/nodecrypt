@@ -47,6 +47,26 @@ export function resolveServerWebSocketAddress(raw) {
 	};
 }
 
+export function getServerAutocompleteOptions() {
+	const isValid = (value) => {
+		try {
+			const parsed = new URL(String(value || '').trim());
+			return /^(https?:|wss?:)$/i.test(parsed.protocol);
+		} catch {
+			return false;
+		}
+	};
+
+	const currentOrigin = isValid(window.location.origin) ? window.location.origin : '';
+
+	return [
+		currentOrigin,
+		...loadRecentServers().filter(isValid)
+	]
+		.filter(Boolean)
+		.filter((item, index, list) => list.indexOf(item) === index);
+}
+
 export async function buildRoomToken({ server, masterKey, roomName, password }, sharePassword = '') {
 	const payload = {
 		s: server || '',

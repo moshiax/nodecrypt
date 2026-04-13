@@ -26,7 +26,7 @@ import {
 	resolveServerWebSocketAddress,
 	buildRoomToken,
 	parseRoomToken,
-	loadRecentServers,
+	getServerAutocompleteOptions,
 	rememberServer
 } from './util.connection.js';
 import {
@@ -527,7 +527,7 @@ export function loginFormHandler(modal) {
 
 		const tokenPasswordProvider = () => requestTokenPasswordModal();
 		let tokenFromAnyField = null;
-		if (String(serverInput || '').trim().startsWith('nct2.')) {
+		if (String(serverInput || '').trim().startsWith('nct.')) {
 			const serverField = modal ? document.getElementById('server-modal') : document.getElementById('server');
 			if (serverField) serverField.value = '';
 			tokenFromAnyField = await parseRoomToken(serverInput, tokenPasswordProvider);
@@ -541,7 +541,6 @@ export function loginFormHandler(modal) {
 			? (document.getElementById('server-modal')?.getAttribute('data-token-master-key') || '')
 			: (document.getElementById('server')?.getAttribute('data-token-master-key') || '');
 		const resolvedServer = resolveServerWebSocketAddress(serverInput);
-		rememberServer(resolvedServer.serverInput);
 		if (!password) {
 			window.addSystemMsg && window.addSystemMsg(t('ui.node_password', 'Node Password') + ' ' + t('ui.required', 'is required'));
 			if (btn) {
@@ -581,6 +580,9 @@ export function loginFormHandler(modal) {
 			btn.innerText = t('ui.connecting', 'Connecting...')
 		}
 			window.joinRoom(userName, roomName, password, resolvedServer, tokenFromAnyField ? tokenFromAnyField.masterKey : datasetMasterKey, modal, function(success) {
+				if (success) {
+					rememberServer(resolvedServer.serverInput);
+				}
 				if (!success && btn) {
 					btn.disabled = false;
 					btn.innerText = t('ui.enter', 'ENTER')
@@ -600,9 +602,7 @@ export function resetLoginButtons() {
 // Generate login form HTML
 export function generateLoginForm(isModal = false) {
 	const idPrefix = isModal ? '-modal' : '';
-	const servers = loadRecentServers();
-	const defaultServer = resolveServerWebSocketAddress(window.location.origin).serverInput;
-	const options = [defaultServer, ...servers.filter((item) => item !== defaultServer)];
+	const options = getServerAutocompleteOptions();
 	return `		<div class="input-group">
 			<input id="server${idPrefix}" type="text" list="server-options${idPrefix}" autocomplete="off" required placeholder="">
 			<label for="server${idPrefix}" class="floating-label">${t('ui.server', 'Server')}</label>
@@ -649,7 +649,7 @@ function attachServerTokenAutofillListeners(formPrefix = '') {
 	serverInput.setAttribute(boundAttr, '1');
 	const applyTokenFromValue = () => {
 		const t = String(serverInput.value || '').trim();
-		if (!t.startsWith('nct2.')) return;
+		if (!t.startsWith('nct.')) return;
 
 		serverInput.value = '';
 		serverInput.removeAttribute(masterKeyAttr);
@@ -687,10 +687,6 @@ export function setupTabs() {
 export function autofillRoomPwd(formPrefix = '') {
 	const roomInput = document.getElementById(`roomName${formPrefix}`);
 	const pwdInput = document.getElementById(`password${formPrefix}`);
-	const serverInput = document.getElementById(`server${formPrefix}`);
-	if (serverInput && !serverInput.value) {
-		serverInput.value = resolveServerWebSocketAddress(window.location.origin).serverInput;
-	}
 	if (roomInput) {
 		roomInput.readOnly = false;
 		roomInput.style.background = '';
