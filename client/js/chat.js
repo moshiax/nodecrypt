@@ -416,6 +416,9 @@ function renderFileMessage(fileData, isSender) {
 		fileName,
 		fileType = '',
 		previewData = null,
+		coverData = null,
+		audioTitle = null,
+		audioArtist = null,
 		originalSize,
 		totalVolumes,
 		fileCount,
@@ -429,7 +432,12 @@ function renderFileMessage(fileData, isSender) {
 		displayName = `${fileCount}${t('file.files', ' files')}`;
 		displayMeta = `${t('file.total', 'Total')}: ${formatFileSize(originalSize)}`;
 	} else {
-		displayName = fileName;
+		const safeTitle = typeof audioTitle === 'string' ? audioTitle.trim() : '';
+		const safeArtist = typeof audioArtist === 'string' ? audioArtist.trim() : '';
+		if (safeArtist && safeTitle) displayName = `${safeArtist} - ${safeTitle}`;
+		else if (safeArtist && !safeTitle) displayName = `${safeArtist} - ${fileName}`;
+		else if (!safeArtist && safeTitle) displayName = safeTitle;
+		else displayName = fileName;
 		displayMeta = formatFileSize(originalSize);
 	}
 	
@@ -479,7 +487,10 @@ function renderFileMessage(fileData, isSender) {
 		downloadBtnStyle = 'display: flex;';
 	}
 	// Different icon for archives vs single files
-	const fileIcon = isArchive ? '📦' : '📄';
+	const safeCoverData = coverData ? escapeHTML(coverData) : '';
+	const fileIcon = isArchive
+		? '📦'
+		: (safeCoverData ? `<img src="${safeCoverData}" alt="cover" class="file-icon-cover">` : getFileEmoji(fileName, fileType));
 
 	return `
 		<div class="file-message" data-file-id="${fileId}">
@@ -504,6 +515,34 @@ function renderFileMessage(fileData, isSender) {
 			</div>` : ''}
 		</div>
 	`;
+}
+
+function getFileEmoji(fileName = '', fileType = '') {
+	const ext = fileName.includes('.') ? fileName.split('.').pop().toLowerCase() : '';
+	const emojiByExtension = {
+		// Audio
+		mp3: '🎵', flac: '🎵', wav: '🎵', aac: '🎵', m4a: '🎵', ogg: '🎵', opus: '🎵',
+		// Video
+		mp4: '🎬', mkv: '🎬', webm: '🎬', mov: '🎬', avi: '🎬',
+		// Images
+		jpg: '🖼️', jpeg: '🖼️', png: '🖼️', gif: '🖼️', webp: '🖼️', svg: '🖼️', bmp: '🖼️',
+		// Docs
+		pdf: '📕', doc: '📘', docx: '📘', odt: '📘', txt: '📄', rtf: '📄',
+		// Sheets / data
+		xls: '📊', xlsx: '📊', csv: '📊', tsv: '📊', json: '🧾', xml: '🧾', yml: '🧾', yaml: '🧾',
+		// Slides
+		ppt: '📽️', pptx: '📽️',
+		// Code
+		js: '💻', ts: '💻', jsx: '💻', tsx: '💻', py: '💻', java: '💻', c: '💻', cpp: '💻', cs: '💻', go: '💻', rs: '💻', php: '💻', html: '💻', css: '💻', sql: '💻',
+		// Bundles / binaries
+		zip: '📦', rar: '📦', '7z': '📦', tar: '📦', gz: '📦', exe: '⚙️', dmg: '💿', apk: '📱', ipa: '📱'
+	};
+
+	if (ext && emojiByExtension[ext]) return emojiByExtension[ext];
+	if (fileType.startsWith('audio/')) return '🎵';
+	if (fileType.startsWith('video/')) return '🎬';
+	if (fileType.startsWith('image/')) return '🖼️';
+	return '📄';
 }
 
 // Automatically adjust the height of the input area

@@ -1,6 +1,7 @@
 // Import necessary modules
 // 导入必要的模块
 import { deflate, inflate } from 'fflate';
+import { parseBlob } from 'music-metadata';
 import { showFileUploadModal } from './util.fileUpload.js';
 
 // 分卷大小统一配置
@@ -396,6 +397,7 @@ async function handleFilesUpload(files, onSend) {
 			const file = files[0];
 			showProgress();
 			const previewData = await createFilePreviewData(file);
+			const { coverData, audioTitle, audioArtist } = await extractAudioMetadata(file);
 			
 			const { volumes, originalSize, compressedSize, originalHash } = await compressFileToVolumes(file);
 			
@@ -407,6 +409,9 @@ async function handleFilesUpload(files, onSend) {
 				fileName: file.name,
 				fileType: file.type,
 				previewData,
+				coverData,
+				audioTitle,
+				audioArtist,
 				originalSize,
 				compressedSize,
 				totalVolumes: volumes.length,
@@ -425,6 +430,9 @@ async function handleFilesUpload(files, onSend) {
 				fileName: file.name,
 				fileType: file.type,
 				previewData,
+				coverData,
+				audioTitle,
+				audioArtist,
 				originalSize,
 				compressedSize,
 				totalVolumes: volumes.length,
@@ -628,6 +636,38 @@ function updateFileProgress(fileId) {
 	});
 }
 
+async function extractAudioMetadata(file) {
+	if (!file || !file.type || !file.type.startsWith('audio/')) {
+		return { coverData: null, audioTitle: null, audioArtist: null };
+	}
+
+	try {
+		const metadata = await parseBlob(file, { skipPostHeaders: true });
+		const picture = metadata?.common?.picture?.[0];
+		let coverData = null;
+
+		if (picture?.data && picture.data.length > 0) {
+			const mimeType = picture.format || 'image/jpeg';
+			let binary = '';
+			const chunkSize = 0x8000;
+			for (let i = 0; i < picture.data.length; i += chunkSize) {
+				const chunk = picture.data.subarray(i, i + chunkSize);
+				binary += String.fromCharCode(...chunk);
+			}
+			coverData = `data:${mimeType};base64,${btoa(binary)}`;
+		}
+
+		return {
+			coverData,
+			audioTitle: metadata?.common?.title || null,
+			audioArtist: metadata?.common?.artist || null
+		};
+	} catch (error) {
+		console.warn('Failed to parse audio metadata:', error);
+		return { coverData: null, audioTitle: null, audioArtist: null };
+	}
+}
+
 // Handle incoming file messages
 // 处理接收到的文件消息
 export function handleFileMessage(message, isPrivate = false) {
@@ -649,13 +689,16 @@ export function handleFileMessage(message, isPrivate = false) {
 // Handle file start message
 // 处理文件开始消息
 function handleFileStart(message, isPrivate) {
-	const { fileId, fileName, fileType = '', previewData = null, originalSize, compressedSize, totalVolumes, originalHash, archiveHash, fileCount, fileManifest, isArchive, userName, clientId = null, avatar = '', userColor = null } = message;
+	const { fileId, fileName, fileType = '', previewData = null, coverData = null, audioTitle = null, audioArtist = null, originalSize, compressedSize, totalVolumes, originalHash, archiveHash, fileCount, fileManifest, isArchive, userName, clientId = null, avatar = '', userColor = null } = message;
 	
 	const fileTransfer = {
 		fileId,
 		fileName,
 		fileType,
 		previewData,
+		coverData,
+		audioTitle,
+		audioArtist,
 		originalSize,
 		compressedSize,
 		totalVolumes,
@@ -675,29 +718,32 @@ function handleFileStart(message, isPrivate) {
 	// 添加文件消息到聊天
 	if (window.addOtherMsg) {
 		let displayData;
-		if (isArchive) {
-			displayData = {
+			if (isArchive) {
+				displayData = {
 				type: 'file',
 				fileId,
 				fileName: `${fileCount} files`,
 				originalSize,
 				totalVolumes,
 				fileCount,
-				isArchive: true,
-				userName
-			};
-		} else {
-			displayData = {
-				type: 'file',
-				fileId,
-				fileName,
-				fileType,
-				previewData,
-				originalSize,
-				totalVolumes,
-				userName
-			};
-		}
+					isArchive: true,
+					userName
+				};
+			} else {
+				displayData = {
+					type: 'file',
+					fileId,
+					fileName,
+					fileType,
+					previewData,
+					coverData,
+					audioTitle,
+					audioArtist,
+					originalSize,
+					totalVolumes,
+					userName
+				};
+			}
 		
 		window.addOtherMsg(displayData, userName, avatar, false, isPrivate ? 'file_private' : 'file', null, clientId, userColor);
 	}
