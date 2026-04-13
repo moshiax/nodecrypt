@@ -42,15 +42,9 @@ export default defineConfig(({ mode }) => {
 		build: {
 			outDir: '../dist',
 			emptyOutDir: true,
-			minify: 'terser',
+			minify: 'esbuild',
 			assetsInlineLimit: isSingleFile ? Number.MAX_SAFE_INTEGER : undefined,
 
-			terserOptions: {
-				compress: {
-					drop_console: false,
-					drop_debugger: false
-				}
-			},
 			rollupOptions: {
 				input: 'client/index.html',
 				output: {
@@ -76,7 +70,7 @@ export default defineConfig(({ mode }) => {
 			open: true,
 		},
 		optimizeDeps: {
-			include: ['buffer', 'elliptic'],
+			include: ['buffer'],
 		},
 	};
 });

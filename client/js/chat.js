@@ -22,8 +22,7 @@ import {
 	removeClass
 } from './util.dom.js';
 import {
-	formatFileSize,
-	getFileEmoji
+	getFileDisplayInfo
 } from './util.file.js';
 import {
 	t
@@ -31,6 +30,7 @@ import {
 import DOMPurify from 'dompurify';
 import Plyr from 'plyr';
 import { PLYR_CONFIG } from './util.plyr.js';
+import { ICONS } from './util.icons.js';
 
 const youtubeRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]{11})/;
 const canUseYouTubeEmbed = typeof window !== 'undefined' && /^https?:$/.test(window.location.protocol);
@@ -70,6 +70,68 @@ function initPlyrPlayers(root = document) {
 	});
 }
 
+function initAudioWaveforms(root = document) {
+	if (!root || !root.querySelectorAll) return;
+	root.querySelectorAll('.file-waveform').forEach((wave) => {
+		if (wave.dataset.waveBound === '1') return;
+		wave.dataset.waveBound = '1';
+		const audio = wave.closest('.file-message')?.querySelector('audio');
+		if (!audio) return;
+		const barCount = Math.max(24, Math.floor(wave.clientWidth / 5));
+		wave.innerHTML = Array.from({ length: barCount }, () => '<span class="file-wave-bar"></span>').join('');
+		const bars = Array.from(wave.querySelectorAll('.file-wave-bar'));
+		const src = audio.currentSrc || audio.querySelector('source')?.src || '';
+		const activateBars = (samples = []) => {
+			bars.forEach((bar, idx) => {
+				const amp = samples[idx] ?? 0.2;
+				const h = Math.max(0.18, Math.min(1, amp));
+				bar.style.height = `${Math.round(h * 100)}%`;
+			});
+		};
+		activateBars(new Array(bars.length).fill(0.22));
+		if (!src) return;
+		fetch(src)
+			.then((res) => res.arrayBuffer())
+			.then((buffer) => {
+				const AudioCtx = window.AudioContext || window.webkitAudioContext;
+				if (!AudioCtx) return;
+				const ctx = new AudioCtx();
+				return ctx.decodeAudioData(buffer).then((audioBuffer) => {
+					const channelData = audioBuffer.getChannelData(0);
+					const blockSize = Math.floor(channelData.length / bars.length) || 1;
+					const waveformData = bars.map((_, i) => {
+						const start = i * blockSize;
+						const end = Math.min(start + blockSize, channelData.length);
+						let peak = 0;
+						for (let j = start; j < end; j++) peak = Math.max(peak, Math.abs(channelData[j]));
+						return peak;
+					});
+					const maxPeak = Math.max(...waveformData, 0.0001);
+					activateBars(waveformData.map((v) => v / maxPeak));
+					if (ctx.state !== 'closed') ctx.close();
+				});
+			})
+			.catch(() => {});
+		const updateWaveProgress = () => {
+			const progress = audio.duration ? (audio.currentTime / audio.duration) : 0;
+			bars.forEach((bar, idx) => {
+				const barProgress = (idx + 1) / bars.length;
+				bar.classList.toggle('active', barProgress <= progress);
+			});
+		};
+		audio.addEventListener('timeupdate', updateWaveProgress);
+		wave.addEventListener('click', (event) => {
+			if (!audio.duration) return;
+			const rect = wave.getBoundingClientRect();
+			if (!rect.width) return;
+			const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+			audio.currentTime = ratio * audio.duration;
+			updateWaveProgress();
+		});
+		updateWaveProgress();
+	});
+}
+
 // Render the chat area
 // 渲染聊天区域
 export function renderChatArea() {
@@ -86,6 +148,7 @@ export function renderChatArea() {
 		else addOtherMsg(m.text, m.userName, m.avatar, true, m.msgType || 'text', m.timestamp, m.clientId || null, m.userColor)
 	});
 	initPlyrPlayers(chatArea);
+	initAudioWaveforms(chatArea);
 }
 
 // Add a message to the chat area
@@ -159,6 +222,7 @@ export function addMsg(text, isHistory = false, msgType = 'text', timestamp = nu
 	}, `<span class="bubble-content">${contentHtml}</span><span class="bubble-meta">${time}</span>`);
 	chatArea.appendChild(div);
 	initPlyrPlayers(div);
+	initAudioWaveforms(div);
 	chatArea.scrollTop = chatArea.scrollHeight
 }
 
@@ -266,6 +330,7 @@ export function addOtherMsg(msg, userName = '', avatar = '', isHistory = false, 
 	}
 	chatArea.appendChild(bubbleWrap);
 	initPlyrPlayers(bubbleWrap);
+	initAudioWaveforms(bubbleWrap);
 	chatArea.scrollTop = chatArea.scrollHeight
 }
 
@@ -423,15 +488,14 @@ function renderFileMessage(fileData, isSender) {
 		originalSize,
 		totalVolumes
 	} = fileData;
-	
-	let displayName, displayMeta;
-	const safeTitle = typeof audioTitle === 'string' ? audioTitle.trim() : '';
-	const safeArtist = typeof audioArtist === 'string' ? audioArtist.trim() : '';
-	if (safeArtist && safeTitle) displayName = `${safeArtist} - ${safeTitle}`;
-	else if (safeArtist && !safeTitle) displayName = `${safeArtist} - ${fileName}`;
-	else if (!safeArtist && safeTitle) displayName = safeTitle;
-	else displayName = fileName;
-	displayMeta = formatFileSize(originalSize);
+	const { displayName, displayMeta, iconHtml } = getFileDisplayInfo({
+		fileName,
+		fileType,
+		audioTitle,
+		audioArtist,
+		coverData,
+		originalSize
+	});
 	
 	const safeDisplayName = escapeHTML(displayName);
 	const safePreviewSrc = previewData ? escapeHTML(previewData) : '';
@@ -464,12 +528,12 @@ function renderFileMessage(fileData, isSender) {
 			progressWidth = `${progress}%`;
 			statusText = `Sending ${transfer.sentVolumes}/${transfer.totalVolumes}`;
 			showProgress = true;
-		} else if (transfer.status === 'receiving') {
+			} else if (transfer.status === 'receiving') {
 			const progress = (transfer.receivedVolumes.size / transfer.totalVolumes) * 100;
 			progressWidth = `${progress}%`;
 			statusText = `Receiving ${transfer.receivedVolumes.size}/${transfer.totalVolumes}`;
 			showProgress = true;
-		} else if (transfer.status === 'completed') {
+			} else if (transfer.status === 'completed') {
 			downloadBtnStyle = 'display: flex;';
 		}	} else if (isSender) {
 		// 发送方历史消息，不显示状态和下载按钮
@@ -478,24 +542,25 @@ function renderFileMessage(fileData, isSender) {
 		// 接收方历史消息，直接显示下载按钮（带动画效果）
 		downloadBtnStyle = 'display: flex;';
 	}
-	const safeCoverData = coverData ? escapeHTML(coverData) : '';
-	const fileIcon = safeCoverData ? `<img src="${safeCoverData}" alt="cover" class="file-icon-cover">` : getFileEmoji(fileName, fileType);
+	const waveformHtml = fileType.startsWith('audio/') ? '<div class="file-waveform"></div>' : '';
+	const downloadIcon = ICONS.fileDownload;
 
 	return `
 		<div class="file-message" data-file-id="${fileId}">
 			${previewHtml}
-			<div class="file-main-content">
-				<div class="file-info">
-					<div class="file-icon">${fileIcon}</div>
-					<div class="file-details">
-						<div class="file-name" title="${safeDisplayName}">${safeDisplayName}</div>
-						<div class="file-meta">${displayMeta}</div>
+				<div class="file-main-content">
+					<div class="file-info">
+						<div class="file-icon">${iconHtml}</div>
+						<div class="file-details">
+							<div class="file-name" title="${safeDisplayName}">${safeDisplayName}</div>
+							<div class="file-meta">${displayMeta}</div>
+						</div>
 					</div>
+					<button class="file-download-btn show" style="${downloadBtnStyle}" onclick="window.downloadFile('${fileId}')">
+						${downloadIcon}
+					</button>
 				</div>
-				<button class="file-download-btn show" style="${downloadBtnStyle}" onclick="window.downloadFile('${fileId}')">
-					<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><g stroke-width="0"></g><g stroke-linecap="round" stroke-linejoin="round"></g><g> <path fill-rule="evenodd" clip-rule="evenodd" d="M8 10C8 7.79086 9.79086 6 12 6C14.2091 6 16 7.79086 16 10V11H17C18.933 11 20.5 12.567 20.5 14.5C20.5 16.433 18.933 18 17 18H16.9C16.3477 18 15.9 18.4477 15.9 19C15.9 19.5523 16.3477 20 16.9 20H17C20.0376 20 22.5 17.5376 22.5 14.5C22.5 11.7793 20.5245 9.51997 17.9296 9.07824C17.4862 6.20213 15.0003 4 12 4C8.99974 4 6.51381 6.20213 6.07036 9.07824C3.47551 9.51997 1.5 11.7793 1.5 14.5C1.5 17.5376 3.96243 20 7 20H7.1C7.65228 20 8.1 19.5523 8.1 19C8.1 18.4477 7.65228 18 7.1 18H7C5.067 18 3.5 16.433 3.5 14.5C3.5 12.567 5.067 11 7 11H8V10ZM13 11C13 10.4477 12.5523 10 12 10C11.4477 10 11 10.4477 11 11V16.5858L9.70711 15.2929C9.31658 14.9024 8.68342 14.9024 8.29289 15.2929C7.90237 15.6834 7.90237 16.3166 8.29289 16.7071L11.2929 19.7071C11.6834 20.0976 12.3166 20.0976 12.7071 19.7071L15.7071 16.7071C16.0976 16.3166 16.0976 15.6834 15.7071 15.2929C15.3166 14.9024 14.6834 14.9024 14.2929 15.2929L13 16.5858V11Z" fill="currentColor"></path> </g></svg>
-				</button>
-			</div>
+			${waveformHtml}
 			${showProgress ? `<div class="file-progress-container">
 				<div class="file-progress-bar">
 					<div class="file-progress" style="width: ${progressWidth}"></div>

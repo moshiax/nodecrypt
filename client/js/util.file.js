@@ -3,6 +3,30 @@
 import { deflate, inflate } from 'fflate';
 import { parseBlob } from 'music-metadata';
 import { showFileUploadModal } from './util.fileUpload.js';
+import { escapeHTML } from './util.string.js';
+
+export function getFileDisplayInfo({
+	fileName = '',
+	fileType = '',
+	audioTitle = null,
+	audioArtist = null,
+	coverData = null,
+	originalSize = 0
+} = {}) {
+	const safeTitle = typeof audioTitle === 'string' ? audioTitle.trim() : '';
+	const safeArtist = typeof audioArtist === 'string' ? audioArtist.trim() : '';
+	let displayName = fileName;
+	if (safeArtist && safeTitle) displayName = `${safeArtist} - ${safeTitle}`;
+	else if (safeArtist && !safeTitle) displayName = `${safeArtist} - ${fileName}`;
+	else if (!safeArtist && safeTitle) displayName = safeTitle;
+	const safeCoverData = coverData ? escapeHTML(coverData) : '';
+	const iconHtml = safeCoverData ? `<img src="${safeCoverData}" alt="cover" class="file-icon-cover">` : getFileEmoji(fileName, fileType);
+	return {
+		displayName,
+		displayMeta: formatFileSize(originalSize),
+		iconHtml
+	};
+}
 
 // 分卷大小统一配置
 const DEFAULT_VOLUME_SIZE = 256 * 1024; // 512KB
@@ -103,7 +127,7 @@ async function compressFileToVolumes(file, volumeSize = DEFAULT_VOLUME_SIZE) { /
 
 // Decompress volumes back to file
 // 将分卷解压回文件
-async function decompressVolumesToFile(volumes, fileName, originalHash = null) {
+async function decompressVolumesToFile(volumes, fileName, originalHash = null, fileType = '') {
 	try {
 		// Combine all volumes using base64 decoding
 		const combinedData = volumes.map(volume => {
@@ -265,8 +289,16 @@ async function handleFilesUpload(files, onSend) {
 }
 
 async function createFilePreviewData(file) {
-	if (!file || !file.type) return null;
-	if (!file.type.startsWith('image/') && !file.type.startsWith('audio/') && !file.type.startsWith('video/')) return null;
+	if (!file) return null;
+
+	const inferredType = file.type || '';
+
+	if (
+		!inferredType.startsWith('image/') &&
+		!inferredType.startsWith('audio/') &&
+		!inferredType.startsWith('video/')
+	) return null;
+
 	return await new Promise((resolve) => {
 		const reader = new FileReader();
 		reader.onload = (event) => resolve(event.target.result);
@@ -408,8 +440,12 @@ function updateFileProgress(fileId) {
 	});
 }
 
-async function extractAudioMetadata(file) {
-	if (!file || !file.type || !file.type.startsWith('audio/')) {
+export async function extractAudioMetadata(file) {
+	if (!file) {
+		return { coverData: null, audioTitle: null, audioArtist: null };
+	}
+
+	if (!(file.type || '').startsWith('audio/')) {
 		return { coverData: null, audioTitle: null, audioArtist: null };
 	}
 
@@ -422,10 +458,12 @@ async function extractAudioMetadata(file) {
 			const mimeType = picture.format || 'image/jpeg';
 			let binary = '';
 			const chunkSize = 0x8000;
+
 			for (let i = 0; i < picture.data.length; i += chunkSize) {
 				const chunk = picture.data.subarray(i, i + chunkSize);
 				binary += String.fromCharCode(...chunk);
 			}
+
 			coverData = `data:${mimeType};base64,${btoa(binary)}`;
 		}
 
@@ -585,7 +623,7 @@ export async function downloadFile(fileId) {
 	if (!transfer || transfer.status !== 'completed') return;
 	
 	try {
-		await decompressVolumesToFile(transfer.volumeData, transfer.fileName, transfer.originalHash);
+		await decompressVolumesToFile(transfer.volumeData, transfer.fileName, transfer.originalHash, transfer.fileType);
 		// 删除系统提示
 	} catch (error) {
 		console.error('Download error:', error);

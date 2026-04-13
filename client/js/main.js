@@ -32,6 +32,7 @@ import {
 	notifyMessage         // 通知信息提示 / Display notification message
 } from './util.settings.js';
 import { t, updateStaticTexts } from './util.i18n.js';
+import { injectStaticIcons } from './util.icons.js';
 
 // 从 util.theme.js 中导入主题功能函数
 // Import theme functions from util.theme.js
@@ -93,6 +94,7 @@ window.config = {
 // Initialize language settings before document starts loading
 initSettings();
 updateStaticTexts();
+injectStaticIcons(document);
 
 // 把一些函数挂载到 window 对象上供其他模块使用
 // Expose functions to the global window object for accessibility

@@ -9,7 +9,7 @@ import {
 	addClass,
 	removeClass
 } from './util.dom.js';
-import { formatFileSize, getFileEmoji } from './util.file.js';
+import { formatFileSize, getFileDisplayInfo, extractAudioMetadata } from './util.file.js';
 import { t } from './util.i18n.js';
 import { escapeHTML } from './util.string.js';
 
@@ -209,9 +209,9 @@ function setupModalEvents() {
 
 // Handle file input change
 // 处理文件输入变化
-function handleFileInputChange(e) {
+async function handleFileInputChange(e) {
 	const files = Array.from(e.target.files);
-	addFiles(files);
+	await addFiles(files);
 	e.target.value = ''; // Clear input
 }
 
@@ -233,22 +233,23 @@ function handleDragLeave(e) {
 
 // Handle drop
 // 处理文件拖放
-function handleDrop(e) {
+async function handleDrop(e) {
 	e.preventDefault();
 	e.stopPropagation();
 	removeClass(e.currentTarget, 'drag-over');
 	
 	const files = Array.from(e.dataTransfer.files);
-	addFiles(files);
+	await addFiles(files);
 }
 
 // Add files to selection
 // 添加文件到选择列表
-function addFiles(files) {
-	files.forEach(file => {
+async function addFiles(files) {
+	for (const file of files) {
+		const { coverData, audioTitle, audioArtist } = await extractAudioMetadata(file);
 		const fileId = generateFileId();
-		selectedFiles.set(fileId, file);
-	});
+		selectedFiles.set(fileId, { file, coverData, audioTitle, audioArtist });
+	}
 	
 	updateFileList();
 	updateSendButton();
@@ -293,18 +294,28 @@ function updateFileList() {
 	fileList.innerHTML = '';
 	
 	for (const [fileId, file] of selectedFiles) {
-		const safeFileName = escapeHTML(file.name);
-		const fileIcon = getFileEmoji(file.name, file.type);
+		const fileEntry = file;
+		const realFile = fileEntry.file;
+		const { displayName, displayMeta, iconHtml } = getFileDisplayInfo({
+			fileName: realFile.name,
+			fileType: realFile.type,
+			audioTitle: fileEntry.audioTitle,
+			audioArtist: fileEntry.audioArtist,
+			coverData: fileEntry.coverData,
+			originalSize: realFile.size
+		});
+		const previewIconHtml = iconHtml.replace('file-icon-cover', 'file-item-cover');
+		const safeDisplayName = escapeHTML(displayName);
 		const fileItem = createElement('div', {
 			class: 'file-item',
 			'data-file-id': fileId
 		}, `
 			<div class="file-item-preview">
-				<span class="file-item-preview-icon">${fileIcon}</span>
+				<span class="file-item-preview-icon">${previewIconHtml}</span>
 			</div>
 			<div class="file-item-info">
-				<div class="file-item-name" title="${safeFileName}">${safeFileName}</div>
-				<div class="file-item-size">${formatFileSize(file.size)}</div>
+				<div class="file-item-name" title="${safeDisplayName}">${safeDisplayName}</div>
+				<div class="file-item-size">${displayMeta}</div>
 			</div>
 			<button class="file-item-remove" type="button" data-file-id="${fileId}">&times;</button>
 		`);
@@ -318,7 +329,7 @@ function updateFileList() {
 			removeFile(fileId);
 		});
 	}	// Update summary
-	const totalSize = Array.from(selectedFiles.values()).reduce((sum, file) => sum + file.size, 0);
+	const totalSize = Array.from(selectedFiles.values()).reduce((sum, entry) => sum + entry.file.size, 0);
 	const summaryText = t('file.files_selected', '{count} files selected, {size} total')
 		.replace('{count}', selectedFiles.size)
 		.replace('{size}', formatFileSize(totalSize));
@@ -339,7 +350,7 @@ function updateSendButton() {
 async function handleSendFiles() {
 	if (selectedFiles.size === 0 || !onSendCallback) return;
 
-	const files = Array.from(selectedFiles.values());
+	const files = Array.from(selectedFiles.values()).map((entry) => entry.file);
 	
 	try {
 		// Close modal first

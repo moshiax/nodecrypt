@@ -459,6 +459,7 @@ body {
 
 .chat-attach-btn-abs {
 	background: none;
+	color: var(--ui-accent);
 	border: none;
 	cursor: pointer;
 	padding: 4px;
@@ -530,7 +531,6 @@ body {
   background: var(--ui-accent);
   position: relative;
   cursor: pointer;
-  font-size: 17px;
   padding: 0.7em 0.7em;
   border-radius: 50px;
   box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1);

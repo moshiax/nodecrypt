@@ -135,7 +135,7 @@
 
 	.mobile-menu-btn,
 	.mobile-info-btn {
-		background: rgba(255, 255, 255, 0.85);
+		background: var(--ui-bg);
 		border: none;
 		align-items: center;
 		width: 45px;
