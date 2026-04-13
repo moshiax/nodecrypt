@@ -1587,6 +1587,9 @@ emoji-picker {
 	flex: 1;
 	padding: 24px;
 	overflow-y: auto;
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
 }
 
 .file-drop-zone {
@@ -1601,6 +1604,11 @@ emoji-picker {
 	align-items: center;
 	justify-content: center;
 	min-height: 200px;
+}
+
+.file-upload-content.has-files .file-drop-zone {
+	min-height: 120px;
+	padding: 20px 16px;
 }
 
 .file-drop-zone:hover,
@@ -1641,6 +1649,8 @@ emoji-picker {
 
 .file-list-container {
 	animation: fadeInUp 0.3s ease;
+	flex: 1;
+	min-height: 0;
 }
 
 .file-list-header {

@@ -276,19 +276,19 @@ function clearAllFiles() {
 function updateFileList() {
 	if (!uploadModal) return;
 
+	const uploadContent = $('.file-upload-content', uploadModal);
 	const fileList = $('#file-list', uploadModal);
 	const fileListContainer = $('#file-list-container', uploadModal);
 	const fileListSummary = $('#file-list-summary', uploadModal);
-	const dropZone = $('#file-drop-zone', uploadModal);
 
 	if (selectedFiles.size === 0) {
 		fileListContainer.style.display = 'none';
-		dropZone.style.display = 'flex';
+		removeClass(uploadContent, 'has-files');
 		return;
 	}
 
 	fileListContainer.style.display = 'block';
-	dropZone.style.display = 'none';
+	addClass(uploadContent, 'has-files');
 
 	// Update file list
 	fileList.innerHTML = '';
