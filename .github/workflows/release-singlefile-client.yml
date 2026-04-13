@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - '.github/workflows/**'
   workflow_dispatch:
 
 jobs:
@@ -11,6 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,11 +34,15 @@ jobs:
         run: |
           cd dist
           FILE_COUNT=$(find . -type f | wc -l)
+
           if [ "$FILE_COUNT" -eq 1 ]; then
-            FILE_NAME=$(find . -type f)
-            cp "$FILE_NAME" ../artifact
+            FILE_NAME=$(find . -type f | head -n 1)
+            BASENAME=$(basename "$FILE_NAME")
+            cp "$FILE_NAME" "../$BASENAME"
+            echo "ARTIFACT=$BASENAME" >> $GITHUB_ENV
           else
             zip -r ../artifact.zip .
+            echo "ARTIFACT=artifact.zip" >> $GITHUB_ENV
           fi
 
       - name: Run npm audit
@@ -65,7 +72,7 @@ jobs:
           bodyFile: release_body.txt
           draft: false
           prerelease: false
-          artifacts: artifact,artifact.zip
+          artifacts: ${{ env.ARTIFACT }}
           generateReleaseNotes: true
           makeLatest: true
         env:

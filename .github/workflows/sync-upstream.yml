@@ -7,11 +7,12 @@ on:
 
 jobs:
   sync:
+    if: github.repository != 'moshiax/NodeCrypt'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - run: |
-          git remote add upstream https://github.com/moshiax/NodeCrypt.git
+          git remote add upstream https://github.com/moshiax/NodeCrypt.git || true
           git fetch upstream
           git checkout main
           git merge --ff-only upstream/main || git merge upstream/main --no-edit
