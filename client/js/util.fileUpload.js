@@ -9,8 +9,9 @@ import {
 	addClass,
 	removeClass
 } from './util.dom.js';
-import { formatFileSize } from './util.file.js';
+import { formatFileSize, getFileEmoji } from './util.file.js';
 import { t } from './util.i18n.js';
+import { escapeHTML } from './util.string.js';
 
 // File upload modal state
 // 文件上传模态框状态
@@ -292,12 +293,17 @@ function updateFileList() {
 	fileList.innerHTML = '';
 	
 	for (const [fileId, file] of selectedFiles) {
+		const safeFileName = escapeHTML(file.name);
+		const fileIcon = getFileEmoji(file.name, file.type);
 		const fileItem = createElement('div', {
 			class: 'file-item',
 			'data-file-id': fileId
 		}, `
+			<div class="file-item-preview">
+				<span class="file-item-preview-icon">${fileIcon}</span>
+			</div>
 			<div class="file-item-info">
-				<div class="file-item-name" title="${file.name}">${file.name}</div>
+				<div class="file-item-name" title="${safeFileName}">${safeFileName}</div>
 				<div class="file-item-size">${formatFileSize(file.size)}</div>
 			</div>
 			<button class="file-item-remove" type="button" data-file-id="${fileId}">&times;</button>

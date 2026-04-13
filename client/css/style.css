@@ -1230,10 +1230,11 @@ emoji-picker {
 
 .file-main-content {
 	display: flex;
+	justify-content: space-between;
 	align-items: center;
 	padding: 3px 3px;
 	gap: 12px;
-	max-width: 200px;
+	width: 100%;
 }
 
 .file-info {
@@ -1367,7 +1368,7 @@ emoji-picker {
 }
 
 .file-download-btn:hover {
-	background: linear-gradient(135deg, #2196f3, #42a5f5);
+	background: var(--ui-accent-strong);
 	transform: translateY(-2px);
 }
 
