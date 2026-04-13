@@ -26,7 +26,6 @@ import {
 	resolveServerWebSocketAddress,
 	buildRoomToken,
 	parseRoomToken,
-	parseRoomTokenFromLocation,
 	loadRecentServers,
 	rememberServer
 } from './util.connection.js';
@@ -99,12 +98,87 @@ function copyToClipboard(text, successMessage = t('action.copied', 'Copied to cl
 // Show fallback copy method
 // 显示降级复制方法
 function showFallbackCopy(text, prefix) {
-	if (typeof prompt === 'function') {
-		prompt(prefix, text);
-	} else {
-		// For environments where prompt is not available
-		window.addSystemMsg && window.addSystemMsg(t('action.copy_not_supported', 'Copy not supported in this environment'));
+	const modal = document.createElement('div');
+	modal.className = 'login-modal';
+	modal.innerHTML = `<div class="login-modal-bg"></div><div class="login-modal-card"><button class="login-modal-close login-modal-close-abs">&times;</button><h1>${escapeHTML(prefix)}</h1><div class="input-group"><textarea id="fallback-copy-text" style="width:100%;min-height:140px;">${escapeHTML(text)}</textarea></div></div>`;
+	document.body.appendChild(modal);
+	const close = () => modal.remove();
+	modal.querySelector('.login-modal-close').onclick = close;
+	modal.querySelector('.login-modal-bg').onclick = close;
+	const textarea = modal.querySelector('#fallback-copy-text');
+	if (textarea) {
+		textarea.focus();
+		textarea.select();
 	}
+}
+
+function openSharePasswordModal() {
+	return new Promise((resolve) => {
+		const modal = document.createElement('div');
+		modal.className = 'login-modal';
+		modal.innerHTML = `<div class="login-modal-bg"></div><div class="login-modal-card"><button class="login-modal-close login-modal-close-abs">&times;</button><h1>Share token</h1><form id="share-token-form"><div class="input-group"><input id="share-token-password" type="password" autocomplete="off" placeholder=""><label for="share-token-password" class="floating-label">Token password (optional)</label></div><button type="submit" class="login-btn">Create token</button></form></div>`;
+		document.body.appendChild(modal);
+		const finish = (value) => {
+			modal.remove();
+			resolve(value);
+		};
+		modal.querySelector('.login-modal-close').onclick = () => finish(null);
+		modal.querySelector('.login-modal-bg').onclick = () => finish(null);
+		modal.querySelector('#share-token-form').addEventListener('submit', (event) => {
+			event.preventDefault();
+			finish(document.getElementById('share-token-password')?.value?.trim() || '');
+		});
+	});
+}
+
+function requestTokenPasswordModal(verifyPassword) {
+	if (requestTokenPasswordModal._activePromise) return requestTokenPasswordModal._activePromise;
+	requestTokenPasswordModal._activePromise = new Promise((resolve) => {
+		const modal = document.createElement('div');
+		modal.className = 'login-modal';
+		modal.innerHTML = `<div class="login-modal-bg"></div><div class="login-modal-card"><button class="login-modal-close login-modal-close-abs">&times;</button><h1>Encrypted token</h1><form id="token-password-form"><div class="input-group"><input id="token-password-input" type="password" autocomplete="off" required placeholder=""><label for="token-password-input" class="floating-label">Token password</label></div><div id="token-password-error" style="color:#e74c3c;font-size:13px;min-height:18px;"></div><button type="submit" class="login-btn" id="token-password-submit">Unlock token</button></form></div>`;
+		document.body.appendChild(modal);
+		const pwdInput = document.getElementById('token-password-input');
+		const submitBtn = document.getElementById('token-password-submit');
+		const errorEl = document.getElementById('token-password-error');
+		const finish = (value) => {
+			modal.remove();
+			resolve(value);
+		};
+		modal.querySelector('.login-modal-close').onclick = () => finish(null);
+		modal.querySelector('.login-modal-bg').onclick = () => finish(null);
+		modal.querySelector('#token-password-form').addEventListener('submit', async (event) => {
+			event.preventDefault();
+			const pwd = pwdInput?.value?.trim() || '';
+			if (!pwd) return;
+			if (errorEl) errorEl.textContent = '';
+			if (submitBtn) {
+				submitBtn.disabled = true;
+				submitBtn.textContent = 'Decrypting...';
+			}
+			if (typeof verifyPassword === 'function') {
+				const parsedPayload = await verifyPassword(pwd);
+				if (parsedPayload) {
+					finish(parsedPayload);
+					return;
+				}
+				if (errorEl) errorEl.textContent = 'Wrong token password. Try again.';
+				if (pwdInput) {
+					pwdInput.value = '';
+					pwdInput.focus();
+				}
+				if (submitBtn) {
+					submitBtn.disabled = false;
+					submitBtn.textContent = 'Unlock token';
+				}
+				return;
+			}
+			finish(pwd);
+		});
+	}).finally(() => {
+		requestTokenPasswordModal._activePromise = null;
+	});
+	return requestTokenPasswordModal._activePromise;
 }
 
 // Execute menu action with error handling
@@ -131,7 +205,7 @@ function executeMenuAction(action, closeMenuCallback) {
 
 // Handle share action
 // 处理分享操作
-function handleShareAction() {
+async function handleShareAction() {
 	const validation = validateRoomData(roomsData[activeRoomIndex]);
 	if (!validation.valid) {
 		window.addSystemMsg && window.addSystemMsg(`${t('action.cannot_share')} ${validation.error}`);
@@ -142,12 +216,14 @@ function handleShareAction() {
 	const roomName = rd.roomName.trim();
 	const password = rd.password || '';
 
-	const token = buildRoomToken({
+	const sharePassword = await openSharePasswordModal();
+	if (sharePassword === null) return;
+	const token = await buildRoomToken({
 		server: rd.serverInput || location.origin,
 		masterKey: (rd.chat && rd.chat.serverMasterKey) ? rd.chat.serverMasterKey : '',
 		roomName,
 		password
-	});
+	}, sharePassword);
 
 	copyToClipboard(
 		token,
@@ -430,7 +506,7 @@ export function preventSpaceInput(input) {
 // Login form submit handler
 // 登录表单提交处理函数
 export function loginFormHandler(modal) {
-	return function(e) {
+	return async function(e) {
 		e.preventDefault();
 		let userName, roomName, password, serverInput, btn, roomInput, warnTip;
 		if (modal) {
@@ -449,7 +525,13 @@ export function loginFormHandler(modal) {
 			roomInput = document.getElementById('roomName')
 		}
 
-		const tokenFromAnyField = parseRoomToken(userName) || parseRoomToken(roomName) || parseRoomToken(password) || parseRoomToken(serverInput);
+		const tokenPasswordProvider = () => requestTokenPasswordModal();
+		let tokenFromAnyField = null;
+		if (String(serverInput || '').trim().startsWith('nct2.')) {
+			const serverField = modal ? document.getElementById('server-modal') : document.getElementById('server');
+			if (serverField) serverField.value = '';
+			tokenFromAnyField = await parseRoomToken(serverInput, tokenPasswordProvider);
+		}
 		if (tokenFromAnyField) {
 			if (tokenFromAnyField.roomName) roomName = tokenFromAnyField.roomName;
 			if (typeof tokenFromAnyField.password === 'string') password = tokenFromAnyField.password;
@@ -460,6 +542,14 @@ export function loginFormHandler(modal) {
 			: (document.getElementById('server')?.getAttribute('data-token-master-key') || '');
 		const resolvedServer = resolveServerWebSocketAddress(serverInput);
 		rememberServer(resolvedServer.serverInput);
+		if (!password) {
+			window.addSystemMsg && window.addSystemMsg(t('ui.node_password', 'Node Password') + ' ' + t('ui.required', 'is required'));
+			if (btn) {
+				btn.disabled = false;
+				btn.innerText = t('ui.enter', 'ENTER');
+			}
+			return;
+		}
 			const exists = roomsData.some(rd => rd.roomName && rd.roomName.toLowerCase() === roomName.toLowerCase());
 		if (roomInput) {
 			roomInput.style.border = '';
@@ -527,8 +617,8 @@ export function generateLoginForm(isModal = false) {
 			<label for="roomName${idPrefix}" class="floating-label">${t('ui.node_name', 'Node Name')}</label>
 		</div>
 		<div class="input-group">
-			<input id="password${idPrefix}" type="password" autocomplete="${isModal ? 'off' : 'current-password'}" minlength="1" maxlength="128" placeholder="">
-			<label for="password${idPrefix}" class="floating-label">${t('ui.node_password', 'Node Password')} <span class="optional">${t('ui.optional', '(optional)')}</span></label>
+			<input id="password${idPrefix}" type="password" autocomplete="${isModal ? 'off' : 'current-password'}" required minlength="1" maxlength="128" placeholder="">
+			<label for="password${idPrefix}" class="floating-label">${t('ui.node_password', 'Node Password')}</label>
 		</div>
 		<button type="submit" class="login-btn">${t('ui.enter', 'ENTER')}</button>
 	`;
@@ -558,14 +648,19 @@ function attachServerTokenAutofillListeners(formPrefix = '') {
 	if (serverInput.getAttribute(boundAttr) === '1') return;
 	serverInput.setAttribute(boundAttr, '1');
 	const applyTokenFromValue = () => {
-		const parsed = parseRoomToken(serverInput.value);
-		if (!parsed) return;
-		if (parsed.server) serverInput.value = parsed.server;
-		if (roomInput && parsed.roomName) roomInput.value = parsed.roomName;
-		if (pwdInput && typeof parsed.password === 'string') pwdInput.value = parsed.password;
-		if (parsed.masterKey) {
-			serverInput.setAttribute(masterKeyAttr, parsed.masterKey);
-		}
+		const t = String(serverInput.value || '').trim();
+		if (!t.startsWith('nct2.')) return;
+
+		serverInput.value = '';
+		serverInput.removeAttribute(masterKeyAttr);
+
+		parseRoomToken(t, requestTokenPasswordModal).then(p => {
+			if (!p) return;
+			p.server && (serverInput.value = p.server);
+			roomInput && p.roomName && (roomInput.value = p.roomName);
+			pwdInput && typeof p.password === 'string' && (pwdInput.value = p.password);
+			p.masterKey && serverInput.setAttribute(masterKeyAttr, p.masterKey);
+		});
 	};
 	serverInput.addEventListener('input', applyTokenFromValue);
 	serverInput.addEventListener('change', applyTokenFromValue);
@@ -590,46 +685,19 @@ export function setupTabs() {
 // Autofill room and password from URL
 // 从 URL 自动填充房间和密码
 export function autofillRoomPwd(formPrefix = '') {
-	const parsedToken = parseRoomTokenFromLocation();
-
-	let roomValue = '';
-	let pwdValue = '';
-	let serverValue = '';
-
-	if (parsedToken) {
-		roomValue = parsedToken.roomName || '';
-		pwdValue = parsedToken.password || '';
-		serverValue = parsedToken.server || '';
-	}
-
 	const roomInput = document.getElementById(`roomName${formPrefix}`);
 	const pwdInput = document.getElementById(`password${formPrefix}`);
 	const serverInput = document.getElementById(`server${formPrefix}`);
-
-	if (serverInput) {
-		serverInput.value = serverValue || resolveServerWebSocketAddress(window.location.origin).serverInput;
-		if (parsedToken && parsedToken.masterKey) {
-			serverInput.setAttribute('data-token-master-key', parsedToken.masterKey);
-		}
+	if (serverInput && !serverInput.value) {
+		serverInput.value = resolveServerWebSocketAddress(window.location.origin).serverInput;
 	}
-	if (roomInput && roomValue) {
-		roomInput.value = roomValue;
-		roomInput.readOnly = true;
-		roomInput.style.background = '#f5f5f5';
+	if (roomInput) {
+		roomInput.readOnly = false;
+		roomInput.style.background = '';
 	}
-	if (pwdInput && (roomValue || parsedToken)) {
-		pwdInput.value = pwdValue;
-		pwdInput.readOnly = true;
-		pwdInput.style.background = '#f5f5f5';
-		if (!pwdValue) {
-			pwdInput.placeholder = 'No password required';
-			pwdInput.value = ' ';
-			pwdInput.style.color = 'transparent';
-		}
-	}
-
-	if (roomValue || pwdValue || parsedToken) {
-		window.history.replaceState({}, '', location.pathname);
+	if (pwdInput) {
+		pwdInput.readOnly = false;
+		pwdInput.style.background = '';
 	}
 }
 
