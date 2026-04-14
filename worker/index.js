@@ -28,14 +28,24 @@ export class ChatRoom {  constructor(state, env) {
     this.env = env;
     
     // Use objects like original server.js instead of Maps
-    this.clients = {};
-    this.channels = {};
+    this.clients = Object.create(null);
+    this.channels = Object.create(null);
     
     this.config = {
-      seenTimeout: 60000,
-      debug: false
+      seenTimeout: 180000,
+      debug: false,
+      maxChannelNameLength: 128
     };
     
+  }
+
+  isSafeObjectKey(key) {
+    return (
+      isString(key) &&
+      key.length > 0 &&
+      key.length <= this.config.maxChannelNameLength &&
+      !['__proto__', 'constructor', 'prototype'].includes(key)
+    );
   }
 
   bytesToBase64(bytes) {
@@ -344,7 +354,7 @@ export class ChatRoom {  constructor(state, env) {
   }
   // Handle channel join requests
   handleJoinChannel(clientId, decrypted) {
-    if (!isString(decrypted.p) || this.clients[clientId].channel) {
+    if (!this.isSafeObjectKey(decrypted.p) || this.clients[clientId].channel) {
       return;
     }
 

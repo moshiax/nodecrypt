@@ -30,6 +30,7 @@ export function getFileDisplayInfo({
 
 // 分卷大小统一配置
 const DEFAULT_VOLUME_SIZE = 256 * 1024; // 512KB
+const FILE_ID_PATTERN = /^file_[0-9]{10,20}_[a-z0-9]{6,32}$/;
 
 // File transfer state management
 // 文件传输状态管理
@@ -67,6 +68,17 @@ function base64ToArrayBuffer(base64) {
 // 生成唯一文件ID
 function generateFileId() {
 	return 'file_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+}
+
+function isValidFileId(fileId) {
+	return typeof fileId === 'string' && FILE_ID_PATTERN.test(fileId);
+}
+
+function escapeSelectorValue(value) {
+	if (typeof CSS !== 'undefined' && CSS && typeof CSS.escape === 'function') {
+		return CSS.escape(value);
+	}
+	return String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
 
 // Calculate SHA-256 hash for data integrity verification
@@ -369,7 +381,8 @@ async function sendVolumes(fileId, volumes, onSend, updateProgress, fileName) {
 function updateFileProgress(fileId) {
 	const transfer = window.fileTransfers.get(fileId);
 	if (!transfer) return;
-	const elements = document.querySelectorAll(`[data-file-id="${fileId}"]`);
+	const safeSelectorFileId = escapeSelectorValue(fileId);
+	const elements = document.querySelectorAll(`[data-file-id="${safeSelectorFileId}"]`);
 	elements.forEach(element => {
 		const progressContainer = element.querySelector('.file-progress-container');
 		const progressBar = element.querySelector('.file-progress');
@@ -528,6 +541,10 @@ export function getFileEmoji(fileName = '', fileType = '') {
 // 处理接收到的文件消息
 export function handleFileMessage(message, isPrivate = false) {
 	const { type, fileId, userName } = message;
+	if (!isValidFileId(fileId)) {
+		console.warn('handleFileMessage rejected unsafe fileId:', fileId);
+		return;
+	}
 	
 	switch (type) {
 		case 'file_start':
