@@ -17,7 +17,7 @@
 	--plyr-video-control-color: white;
 	--plyr-video-control-color-hover: var(--ui-bg);
 	--plyr-video-control-background-hover: var(--ui-accent);
-	--plyr-audio-controls-background: var(--ui-bg);
+	--plyr-audio-controls-background: transparent;
 	--plyr-audio-control-color: var(--ui-accent);
 	--plyr-audio-control-color-hover: var(--ui-bg);
 	--plyr-audio-control-background-hover: var(--ui-accent);

@@ -34,7 +34,9 @@ export class ChatRoom {  constructor(state, env) {
     this.config = {
       seenTimeout: 180000,
       debug: false,
-      maxChannelNameLength: 128
+      maxChannelNameLength: 128,
+      maxKeyExchangeMessageLength: 2048,
+      maxEncryptedMessageLength: 8 * 1024 * 1024
     };
     
   }
@@ -141,7 +143,7 @@ export class ChatRoom {  constructor(state, env) {
     }
 
     logEvent('connection', clientId, 'debug');    // Store client information
-    this.clients[clientId] = {
+    const client = this.clients[clientId] = {
       connection: connection,
       seen: getTime(),
       key: null,
@@ -171,7 +173,7 @@ export class ChatRoom {  constructor(state, env) {
         this.base64ToBytes(sessionPublicKeyB64)
       );
 
-      this.clients[clientId].sessionPrivateKey = sessionKeyPair.privateKey;
+      client.sessionPrivateKey = sessionKeyPair.privateKey;
 
       this.sendMessage(connection, JSON.stringify({
         type: 'master-key',
@@ -195,11 +197,12 @@ export class ChatRoom {  constructor(state, env) {
     connection.addEventListener('message', async (event) => {
       const message = event.data;
 
-      if (!isString(message) || !this.clients[clientId]) {
+      const currentClient = this.clients[clientId];
+      if (!isString(message) || !currentClient) {
         return;
       }
 
-      this.clients[clientId].seen = getTime();
+      currentClient.seen = getTime();
 
       if (message === 'ping') {
         this.sendMessage(connection, 'pong');
@@ -207,7 +210,7 @@ export class ChatRoom {  constructor(state, env) {
       }
 
       logEvent('message', [clientId, message], 'debug');      // Handle key exchange
-      if (!this.clients[clientId].shared && this.clients[clientId].sessionPrivateKey && message.length < 2048) {
+      if (!currentClient.shared && currentClient.sessionPrivateKey && message.length < this.config.maxKeyExchangeMessageLength) {
         try {
           // Generate ECDH key pair using P-384 curve (equivalent to secp384r1)
           const keys = await crypto.subtle.generateKey(
@@ -227,7 +230,7 @@ export class ChatRoom {  constructor(state, env) {
               name: 'RSA-PSS',
               saltLength: 32
             },
-            this.clients[clientId].sessionPrivateKey,
+            currentClient.sessionPrivateKey,
             publicKeyBuffer
           );
 
@@ -264,8 +267,8 @@ export class ChatRoom {  constructor(state, env) {
             hkdfBaseKey,
             256
           );
-          this.clients[clientId].shared = new Uint8Array(derivedAesBits);
-          this.clients[clientId].sessionPrivateKey = null;
+          currentClient.shared = new Uint8Array(derivedAesBits);
+          currentClient.sessionPrivateKey = null;
 
           const response = Array.from(new Uint8Array(publicKeyBuffer))
             .map(b => b.toString(16).padStart(2, '0')).join('') + 
@@ -282,14 +285,18 @@ export class ChatRoom {  constructor(state, env) {
       }
 
       // Handle encrypted messages
-      if (this.clients[clientId].shared && message.length <= (8 * 1024 * 1024)) {
+      if (currentClient.shared && message.length <= this.config.maxEncryptedMessageLength) {
         this.processEncryptedMessage(clientId, message);
       }
     });    // Handle connection close
     connection.addEventListener('close', async (event) => {
       logEvent('close', [clientId, event], 'debug');
 
-      const channel = this.clients[clientId].channel;
+      const currentClient = this.clients[clientId];
+      if (!currentClient) {
+        return;
+      }
+      const channel = currentClient.channel;
 
       if (channel && this.channels[channel]) {
         this.channels[channel].splice(this.channels[channel].indexOf(clientId), 1);
@@ -317,10 +324,8 @@ export class ChatRoom {  constructor(state, env) {
         }
       }
 
-      if (this.clients[clientId]) {
-        this.clients[clientId].sessionPrivateKey = null;
-        delete(this.clients[clientId]);
-      }
+      currentClient.sessionPrivateKey = null;
+      delete(this.clients[clientId]);
     });
   }
   // Process encrypted messages
@@ -377,12 +382,13 @@ export class ChatRoom {  constructor(state, env) {
   }
   // Handle client messages
   handleClientMessage(clientId, decrypted) {
-    if (!isString(decrypted.p) || !isString(decrypted.c) || !this.clients[clientId].channel) {
+    const senderClient = this.clients[clientId];
+    if (!isString(decrypted.p) || !isString(decrypted.c) || !senderClient?.channel) {
       return;
     }
 
     try {
-      const channel = this.clients[clientId].channel;
+      const channel = senderClient.channel;
       const targetClient = this.clients[decrypted.c];
 
       if (this.isClientInChannel(targetClient, channel)) {
@@ -403,24 +409,23 @@ export class ChatRoom {  constructor(state, env) {
     }
   }  // Handle channel messages
   handleChannelMessage(clientId, decrypted) {
-    if (!isObject(decrypted.p) || !this.clients[clientId].channel) {
+    const senderClient = this.clients[clientId];
+    if (!isObject(decrypted.p) || !senderClient?.channel) {
       return;
     }
     
     try {
-      const channel = this.clients[clientId].channel;
-      // 过滤有效的目标成员
-      const validMembers = Object.keys(decrypted.p).filter(member => {
-        const targetClient = this.clients[member];
-        return isString(decrypted.p[member]) && this.isClientInChannel(targetClient, channel);
-      });
+      const channel = senderClient.channel;
 
-      // 处理所有有效的目标成员
-      for (const member of validMembers) {
+      for (const member of Object.keys(decrypted.p)) {
         const targetClient = this.clients[member];
+        const payload = decrypted.p[member];
+        if (!isString(payload) || !this.isClientInChannel(targetClient, channel)) {
+          continue;
+        }
         const messageObj = {
           a: 'c',
-          p: decrypted.p[member],
+          p: payload,
           c: clientId
         };        const encrypted = encryptMessage(messageObj, targetClient.shared);
         this.sendMessage(targetClient.connection, encrypted);
@@ -459,15 +464,7 @@ export class ChatRoom {  constructor(state, env) {
     }
   }  // Check if client is in channel
   isClientInChannel(client, channel) {
-    return (
-      client &&
-      client.connection &&
-      client.shared &&
-      client.channel &&
-      client.channel === channel ?
-      true :
-      false
-    );
+    return !!(client && client.connection && client.shared && client.channel === channel);
   }
   // Send message helper
   sendMessage(connection, message) {

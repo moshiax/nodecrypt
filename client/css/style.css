@@ -695,7 +695,7 @@ flex-direction: column;
 }
 
 .bubble.other {
-	background: var(--ui-surface);
+	background: var(--ui-bg);
 	max-width: 100%;
 	color: var(--ui-text);
 	border-bottom-left-radius: 0px;
@@ -1484,25 +1484,6 @@ emoji-picker {
 .bubble.private-message .file-name{
     color:var(--ui-on-accent) !important;
 
-}
-
-.bubble.private-message .file-message .file-download-btn {
-	background: linear-gradient(135deg, #ff9800, #ffb74d);
-	box-shadow: 0 2px 8px rgba(255, 152, 0, 0.3);
-}
-
-.bubble.private-message .file-message .file-download-btn:hover {
-	background: linear-gradient(135deg, #f57c00, #ff9800);
-	box-shadow: 0 4px 16px rgba(255, 152, 0, 0.4);
-}
-
-.bubble.private-message .file-message .file-progress {
-	background: linear-gradient(90deg, #ff9800, #ffb74d, #ffcc80);
-}
-
-.bubble.private-message .file-message .file-status {
-	background: rgba(255, 152, 0, 0.05);
-	color: var(--ui-on-accent) !important;
 }
 
 /* File Upload Modal Styles */

@@ -151,6 +151,40 @@ export function renderChatArea() {
 	initAudioWaveforms(chatArea);
 }
 
+function formatMessageTime(ts) {
+	const date = new Date(ts);
+	return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+}
+
+function sanitizeImageSrc(value) {
+	return escapeHTML(value).replace(/javascript:/gi, '');
+}
+
+function renderImageMessageContent(payload) {
+	if (typeof payload === 'object' && payload && Array.isArray(payload.images)) {
+		const messageText = payload.text ? textToHTML(payload.text) : '';
+		const imageElements = payload.images
+			.map((imgData) => `<img src="${sanitizeImageSrc(imgData)}" alt="image" class="bubble-img">`)
+			.join('');
+		if (messageText && imageElements) {
+			return `<div class="mixed-content"><div class="message-text">${messageText}</div>${imageElements}</div>`;
+		}
+		return imageElements || messageText;
+	}
+	if (typeof payload === 'object' && payload && payload.image) {
+		const imageHtml = `<img src="${sanitizeImageSrc(payload.image)}" alt="image" class="bubble-img">`;
+		const messageText = payload.text ? textToHTML(payload.text) : '';
+		return messageText ? `<div class="mixed-content"><div class="message-text">${messageText}</div>${imageHtml}</div>` : imageHtml;
+	}
+	return `<img src="${sanitizeImageSrc(payload)}" alt="image" class="bubble-img">`;
+}
+
+function renderMessageContent(payload, msgType, isSender) {
+	if (msgType === 'image' || msgType === 'image_private') return renderImageMessageContent(payload);
+	if (msgType === 'file' || msgType === 'file_private') return renderFileMessage(payload, isSender);
+	return textToHTML(payload) + renderYouTubePreview(typeof payload === 'string' ? payload : '');
+}
+
 // Add a message to the chat area
 // 添加消息到聊天区域
 export function addMsg(text, isHistory = false, msgType = 'text', timestamp = null) {
@@ -166,57 +200,9 @@ export function addMsg(text, isHistory = false, msgType = 'text', timestamp = nu
 	}	const chatArea = $id('chat-area');
 	if (!chatArea) return;
 	let className = 'bubble me' + (msgType.includes('_private') ? ' private-message' : '');
-	const date = new Date(ts);
-	const time = date.getHours().toString().padStart(2, '0') + ':' + date.getMinutes().toString().padStart(2, '0');	let contentHtml = '';	if (msgType === 'image' || msgType === 'image_private') {
-		// Handle image messages (can contain both text and images)
-		if (typeof text === 'object' && text.images && Array.isArray(text.images)) {
-			// New multi-image format: {text: "", images: ["data:image...", "data:image..."]}
-			const messageText = text.text ? textToHTML(text.text) : '';
-			const imageElements = text.images.map(imgData => {
-				const safeImgSrc = escapeHTML(imgData).replace(/javascript:/gi, '');
-				return `<img src="${safeImgSrc}" alt="image" class="bubble-img">`;
-			}).join('');
-					if (messageText && imageElements) {
-				// Mixed content: text + images
-				contentHtml = `<div class="mixed-content">
-					<div class="message-text">${messageText}</div>
-					${imageElements}
-				</div>`;
-			} else if (imageElements) {
-				// Images only
-				contentHtml = imageElements;
-			} else {
-				// Fallback to text only
-				contentHtml = messageText;
-			}
-		} else if (typeof text === 'object' && text.image) {
-			// Legacy single image format: {text: "", image: "data:image..."}
-			const safeImgSrc = escapeHTML(text.image).replace(/javascript:/gi, '');
-			const messageText = text.text ? textToHTML(text.text) : '';
-			
-			if (messageText) {
-				// Mixed content: text + image
-				contentHtml = `<div class="mixed-content">
-					<div class="message-text">${messageText}</div>
-					<img src="${safeImgSrc}" alt="image" class="bubble-img">
-				</div>`;
-			} else {
-				// Image only
-				contentHtml = `<img src="${safeImgSrc}" alt="image" class="bubble-img">`;
-			}
-		} else {
-			// Legacy format: plain image data URL
-			const safeImgSrc = escapeHTML(text).replace(/javascript:/gi, '');
-			contentHtml = `<img src="${safeImgSrc}" alt="image" class="bubble-img">`;
-		}
-	} else if (msgType === 'file' || msgType === 'file_private') {
-		// Handle file messages
-		contentHtml = renderFileMessage(text, true);
-		// Add file-bubble class for special timestamp positioning
-		className += ' file-bubble';
-	} else {
-		contentHtml = textToHTML(text) + renderYouTubePreview(typeof text === 'string' ? text : '')
-	}
+	if (msgType === 'file' || msgType === 'file_private') className += ' file-bubble';
+	const time = formatMessageTime(ts);
+	const contentHtml = renderMessageContent(text, msgType, true);
 	const div = createElement('div', {
 		class: className
 	}, `<span class="bubble-content">${contentHtml}</span><span class="bubble-meta">${time}</span>`);
@@ -243,62 +229,14 @@ export function addOtherMsg(msg, userName = '', avatar = '', isHistory = false, 
 	if (!ts) return;
 	const chatArea = $id('chat-area');
 	if (!chatArea) return;
-	const bubbleWrap = createElement('div', {
-		class: 'bubble-other-wrap'
-	});	let contentHtml = '';	if (msgType === 'image' || msgType === 'image_private') {
-		// Handle image messages (can contain both text and images)
-		if (typeof msg === 'object' && msg.images && Array.isArray(msg.images)) {
-			// New multi-image format: {text: "", images: ["data:image...", "data:image..."]}
-			const messageText = msg.text ? textToHTML(msg.text) : '';
-			const imageElements = msg.images.map(imgData => {
-				const safeImgSrc = escapeHTML(imgData).replace(/javascript:/gi, '');
-				return `<img src="${safeImgSrc}" alt="image" class="bubble-img">`;
-			}).join('');
-					if (messageText && imageElements) {
-				// Mixed content: text + images
-				contentHtml = `<div class="mixed-content">
-					<div class="message-text">${messageText}</div>
-					${imageElements}
-				</div>`;
-			} else if (imageElements) {
-				// Images only
-				contentHtml = imageElements;
-			} else {
-				// Fallback to text only
-				contentHtml = messageText;
-			}
-		} else if (typeof msg === 'object' && msg.image) {
-			// Legacy single image format: {text: "", image: "data:image..."}
-			const safeImgSrc = escapeHTML(msg.image).replace(/javascript:/gi, '');
-			const messageText = msg.text ? textToHTML(msg.text) : '';
-			
-			if (messageText) {
-				// Mixed content: text + image
-				contentHtml = `<div class="mixed-content">
-					<div class="message-text">${messageText}</div>
-					<img src="${safeImgSrc}" alt="image" class="bubble-img">
-				</div>`;
-			} else {
-				// Image only
-				contentHtml = `<img src="${safeImgSrc}" alt="image" class="bubble-img">`;
-			}
-		} else {
-			// Legacy format: plain image data URL
-			const safeImgSrc = escapeHTML(msg).replace(/javascript:/gi, '');
-			contentHtml = `<img src="${safeImgSrc}" alt="image" class="bubble-img">`;
-		}
-	} else if (msgType === 'file' || msgType === 'file_private') {
-		// Handle file messages
-		contentHtml = renderFileMessage(msg, false);	} else {
-		contentHtml = textToHTML(msg) + renderYouTubePreview(typeof msg === 'string' ? msg : '')
-	}
+	const bubbleWrap = createElement('div', { class: 'bubble-other-wrap' });
+	const contentHtml = renderMessageContent(msg, msgType, false);
 	const safeUserName = escapeHTML(userName);
 	if (clientId && typeof clientId === 'string') {
 		bubbleWrap.dataset.clientId = clientId;
 	}
 	bubbleWrap.dataset.userName = userName;
-	const date = new Date(ts);
-	const time = date.getHours().toString().padStart(2, '0') + ':' + date.getMinutes().toString().padStart(2, '0');
+	const time = formatMessageTime(ts);
 	let bubbleClasses = 'bubble other';
 	if (msgType && msgType.includes('_private')) {
 		bubbleClasses += ' private-message'
