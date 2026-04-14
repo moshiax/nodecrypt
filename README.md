@@ -125,7 +125,6 @@ sequenceDiagram
 - **Web Cryptography API**: Native browser encryption implementation with hardware acceleration
 - **@noble/curves (x25519)**: Modern audited Curve25519 implementation for inter-client ECDH
 - **Web Crypto AES-GCM/HKDF/PBKDF2/RSA-PSS**: Standard primitives provided by browser and Worker runtimes
-- **js-sha256**: SHA-256 hash algorithm implementation
 
 ## 🔬 Security Verification
 

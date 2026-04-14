@@ -13,6 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: write
 
     steps:
       - name: Checkout
@@ -77,3 +78,68 @@ jobs:
           makeLatest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cleanup old releases, tags and runs (keep last 3)
+        if: success()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+
+          OWNER=$(echo "$GITHUB_REPOSITORY" | cut -d'/' -f1)
+          REPO=$(echo "$GITHUB_REPOSITORY" | cut -d'/' -f2)
+
+          echo "Fetching releases..."
+
+          releases=$(curl -s \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$OWNER/$REPO/releases?per_page=100")
+
+          echo "$releases" | jq -r '.[] | "\(.id) \(.tag_name)"' > releases.txt
+
+          total=$(wc -l < releases.txt)
+          echo "Total releases: $total"
+
+          if [ "$total" -le 3 ]; then
+            echo "Nothing to delete (releases)"
+          else
+            echo "$releases" | jq -r '.[] | "\(.id) \(.tag_name)"' | tail -n +4 | while read id tag; do
+              echo "Deleting release: $id ($tag)"
+
+              # delete release
+              curl -s -X DELETE \
+                -H "Authorization: token $GITHUB_TOKEN" \
+                -H "Accept: application/vnd.github+json" \
+                "https://api.github.com/repos/$OWNER/$REPO/releases/$id"
+
+              curl -s -X DELETE \
+                -H "Authorization: token $GITHUB_TOKEN" \
+                "https://api.github.com/repos/$OWNER/$REPO/git/refs/tags/$tag" || true
+            done
+          fi
+
+          echo "Fetching workflow runs..."
+
+          runs=$(curl -s \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$OWNER/$REPO/actions/runs?per_page=100")
+
+          echo "$runs" | jq -r '.workflow_runs[] | "\(.id)"' > runs.txt
+
+          total_runs=$(wc -l < runs.txt)
+          echo "Total runs: $total_runs"
+
+          if [ "$total_runs" -le 3 ]; then
+            echo "Nothing to delete (runs)"
+          else
+            echo "$runs" | jq -r '.workflow_runs[] | "\(.id)"' | tail -n +4 | while read run_id; do
+              echo "Deleting workflow run: $run_id"
+
+              curl -s -X DELETE \
+                -H "Authorization: token $GITHUB_TOKEN" \
+                -H "Accept: application/vnd.github+json" \
+                "https://api.github.com/repos/$OWNER/$REPO/actions/runs/$run_id"
+            done
+          fi
