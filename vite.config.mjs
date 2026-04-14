@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite';
+import { splitVendorChunkPlugin } from 'vite';
 import { viteSingleFile } from 'vite-plugin-singlefile';
 import fs from 'node:fs';
 
@@ -38,7 +39,10 @@ export default defineConfig(({ mode }) => {
 	return {
 		root: 'client',
 		base: './',
-		plugins: isSingleFile ? [viteSingleFile(), inlineFavicon()] : [],
+		plugins: isSingleFile
+			? [viteSingleFile(), inlineFavicon()]
+			: [splitVendorChunkPlugin()],
+
 		build: {
 			outDir: '../dist',
 			emptyOutDir: true,
@@ -47,14 +51,9 @@ export default defineConfig(({ mode }) => {
 
 			rollupOptions: {
 				input: 'client/index.html',
-				output: {
-					manualChunks: isSingleFile ? undefined : (id) => {
-						if (id.includes('node_modules')) {
-							return 'vendor-deps';
-						}
-						return undefined;
-					}
-				}
+				output: isSingleFile
+					? undefined
+					: {}
 			},
 			sourcemap: false,
 			cssCodeSplit: !isSingleFile,

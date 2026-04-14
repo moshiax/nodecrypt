@@ -49,6 +49,13 @@ class NodeCrypt {
 		this.identityKeys = null;
 		this.identityPublicHex = '';
 		this.identityFingerprint = '';
+		this.textEncoder = new TextEncoder();
+		this.textDecoder = new TextDecoder();
+		this.serverAad = this.textEncoder.encode('nodecrypt-server-v1');
+		this.clientAad = this.textEncoder.encode('nodecrypt-client-v1');
+		this.serverHkdfInfo = this.textEncoder.encode('nodecrypt-server-handshake-v2');
+		this.peerHkdfInfo = this.textEncoder.encode('nodecrypt-client-v2');
+		this.aesKeyCache = new Map();
 		this.setCredentials = this.setCredentials.bind(this);
 		this.connect = this.connect.bind(this);
 		this.destruct = this.destruct.bind(this);
@@ -87,9 +94,8 @@ class NodeCrypt {
 	}
 
 	async deriveRoomPasswordKey(password, channelHash) {
-		const encoder = new TextEncoder();
-		const passwordBytes = encoder.encode(password || '');
-		const saltBytes = encoder.encode(`nodecrypt-room-kdf-v1:${channelHash || ''}`);
+		const passwordBytes = this.textEncoder.encode(password || '');
+		const saltBytes = this.textEncoder.encode(`nodecrypt-room-kdf-v1:${channelHash || ''}`);
 		const baseKey = await crypto.subtle.importKey('raw', passwordBytes, { name: 'PBKDF2' }, false, ['deriveBits']);
 		const derivedBits = await crypto.subtle.deriveBits({
 			name: 'PBKDF2', salt: saltBytes, iterations: 600000, hash: 'SHA-256'
@@ -130,7 +136,7 @@ class NodeCrypt {
 			name: 'HKDF',
 			hash: 'SHA-256',
 			salt: salt,
-			info: new TextEncoder().encode('nodecrypt-client-v2')
+			info: this.peerHkdfInfo
 		}, hkdfBaseKey, 256);
 		return new Uint8Array(derivedBits);
 	}
@@ -399,6 +405,7 @@ class NodeCrypt {
 		this.identityKeys = null;
 		this.identityPublicHex = '';
 		this.identityFingerprint = '';
+		this.aesKeyCache.clear();
 		this.lastOutboundAt = 0;
 		return (true)
 	}
@@ -658,7 +665,7 @@ class NodeCrypt {
 					name: 'HKDF',
 					hash: 'SHA-256',
 					salt: new Uint8Array(0),
-					info: new TextEncoder().encode('nodecrypt-server-handshake-v2')
+					info: this.serverHkdfInfo
 				}, hkdfKey, 256);
 				this.serverShared = Buffer.from(new Uint8Array(serverShared));
 				this.sendMessage(await this.encryptServerMessage({
@@ -719,13 +726,28 @@ class NodeCrypt {
 	// Check if connection is open
 	// 检查连接是否已打开
 	isOpen() {
-		return (this.connection && this.connection.readyState && this.connection.readyState === WebSocket.OPEN ? true : false)
+		return this.connection?.readyState === WebSocket.OPEN
 	}
 
 	// Check if connection is closed
 	// 检查连接是否已关闭
 	isClosed() {
-		return (!this.connection || !this.connection.readyState || this.connection.readyState === WebSocket.CLOSED ? true : false)
+		return !this.connection || this.connection.readyState === WebSocket.CLOSED
+	}
+
+	async getAesCryptoKey(key) {
+		const keyBytes = (key instanceof Uint8Array ? key : new Uint8Array(key || []));
+		if (keyBytes.length === 0) {
+			throw new Error('Invalid AES key');
+		}
+		const cacheKey = Buffer.from(keyBytes).toString('base64');
+		const cached = this.aesKeyCache.get(cacheKey);
+		if (cached) {
+			return cached;
+		}
+		const cryptoKey = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+		this.aesKeyCache.set(cacheKey, cryptoKey);
+		return cryptoKey;
 	}
 
 	// Start reconnect timer
@@ -850,12 +872,12 @@ class NodeCrypt {
 		let encrypted = '';
 		try {
 			const iv = crypto.getRandomValues(new Uint8Array(12));
-			const plainBytes = new TextEncoder().encode(JSON.stringify(message));
-			const cryptoKey = await crypto.subtle.importKey('raw', new Uint8Array(key), { name: 'AES-GCM' }, false, ['encrypt']);
+			const plainBytes = this.textEncoder.encode(JSON.stringify(message));
+			const cryptoKey = await this.getAesCryptoKey(key);
 			const ciphertext = await crypto.subtle.encrypt({
 				name: 'AES-GCM',
 				iv: iv,
-				additionalData: new TextEncoder().encode('nodecrypt-server-v1'),
+				additionalData: this.serverAad,
 				tagLength: 128
 			}, cryptoKey, plainBytes);
 			encrypted = Buffer.from(iv).toString('base64') + '|' + Buffer.from(new Uint8Array(ciphertext)).toString('base64')
@@ -876,14 +898,14 @@ class NodeCrypt {
 			}
 			const iv = Buffer.from(parts[0], 'base64');
 			const cipherBytes = Buffer.from(parts[1], 'base64');
-			const cryptoKey = await crypto.subtle.importKey('raw', new Uint8Array(key), { name: 'AES-GCM' }, false, ['decrypt']);
+			const cryptoKey = await this.getAesCryptoKey(key);
 			const plainBuffer = await crypto.subtle.decrypt({
 				name: 'AES-GCM',
 				iv: iv,
-				additionalData: new TextEncoder().encode('nodecrypt-server-v1'),
+				additionalData: this.serverAad,
 				tagLength: 128
 			}, cryptoKey, cipherBytes);
-			decrypted = JSON.parse(new TextDecoder().decode(plainBuffer))
+			decrypted = JSON.parse(this.textDecoder.decode(plainBuffer))
 		} catch (error) {
 			this.logEvent('decryptServerMessage', error, 'error')
 		}
@@ -896,12 +918,12 @@ class NodeCrypt {
 		let encrypted = '';
 		try {
 			const iv = crypto.getRandomValues(new Uint8Array(12));
-			const plainBytes = new TextEncoder().encode(JSON.stringify(message));
-			const cryptoKey = await crypto.subtle.importKey('raw', new Uint8Array(key), { name: 'AES-GCM' }, false, ['encrypt']);
+			const plainBytes = this.textEncoder.encode(JSON.stringify(message));
+			const cryptoKey = await this.getAesCryptoKey(key);
 			const ciphertext = await crypto.subtle.encrypt({
 				name: 'AES-GCM',
 				iv: iv,
-				additionalData: new TextEncoder().encode('nodecrypt-client-v1'),
+				additionalData: this.clientAad,
 				tagLength: 128
 			}, cryptoKey, plainBytes);
 			encrypted = Buffer.from(iv).toString('base64') + '|' + Buffer.from(new Uint8Array(ciphertext)).toString('base64')
@@ -922,14 +944,14 @@ class NodeCrypt {
 			}
 			const iv = Buffer.from(parts[0], 'base64');
 			const cipherBytes = Buffer.from(parts[1], 'base64');
-			const cryptoKey = await crypto.subtle.importKey('raw', new Uint8Array(key), { name: 'AES-GCM' }, false, ['decrypt']);
+			const cryptoKey = await this.getAesCryptoKey(key);
 			const plainBuffer = await crypto.subtle.decrypt({
 				name: 'AES-GCM',
 				iv: iv,
-				additionalData: new TextEncoder().encode('nodecrypt-client-v1'),
+				additionalData: this.clientAad,
 				tagLength: 128
 			}, cryptoKey, cipherBytes);
-			decrypted = JSON.parse(new TextDecoder().decode(plainBuffer))
+			decrypted = JSON.parse(this.textDecoder.decode(plainBuffer))
 		} catch (error) {
 			this.logEvent('decryptClientMessage', error, 'error')
 		}
