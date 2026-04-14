@@ -27,6 +27,7 @@ import {
 	createElement
 } from './util.dom.js';
 import { t } from './util.i18n.js';
+import { isValidFileId } from './util.file.js';
 let roomsData = [];
 let activeRoomIndex = -1;
 
@@ -313,7 +314,7 @@ export function handleClientMessage(idx, msg) {
 			const historyMsgType = msgType === 'file_start_private' ? 'file_private' : 'file';
 			
 			const fileId = msg.data && msg.data.fileId;
-			if (fileId) { // Only proceed if we have a fileId
+			if (isValidFileId(fileId)) {
 				const messageAlreadyInHistory = newRd.messages.some(
 					m => m.msgType === historyMsgType && m.text && m.text.fileId === fileId && m.userName === realUserName
 				);
@@ -330,6 +331,8 @@ export function handleClientMessage(idx, msg) {
 						timestamp: (msg.data && msg.data.timestamp) || Date.now() 
 					});
 				}
+			} else if (fileId) {
+				console.warn('Rejected file_start with unsafe fileId in history pipeline:', fileId);
 			}
 
 			const notificationMsgType = msgType.includes('_private') ? 'private file' : 'file';

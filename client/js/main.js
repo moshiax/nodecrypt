@@ -82,6 +82,8 @@ import {	renderUserList,       // 渲染用户列表 / Render user list
 	initFlipCard          // 初始化翻转卡片功能 / Initialize flip card functionality
 } from './ui.js';
 
+let sendMessageHandler = async () => {};
+
 // 设置全局配置参数
 // Set global configuration parameters
 window.config = {
@@ -98,13 +100,19 @@ injectStaticIcons(document);
 
 // 把一些函数挂载到 window 对象上供其他模块使用
 // Expose functions to the global window object for accessibility
-window.addSystemMsg = addSystemMsg;
-window.addOtherMsg = addOtherMsg;
-window.joinRoom = joinRoom;
-window.notifyMessage = notifyMessage;
-window.setupEmojiPicker = setupEmojiPicker;
-window.handleFileMessage = handleFileMessage;
-window.downloadFile = downloadFile;
+Object.assign(window, {
+  addSystemMsg,
+  addOtherMsg,
+  joinRoom,
+  notifyMessage,
+  setupEmojiPicker,
+  handleFileMessage,
+  downloadFile,
+  addMsg,
+  sendMessage: (...args) => sendMessageHandler(...args),
+  getRoomsData: () => roomsData,
+  getActiveRoomIndex: () => activeRoomIndex
+});
 
 // 当 DOM 内容加载完成后执行初始化逻辑
 // Run initialization logic when the DOM content is fully loaded
@@ -271,6 +279,7 @@ window.addEventListener('DOMContentLoaded', () => {
 			autoGrowInput(); // 调整输入框高度
 		}
 	}
+	sendMessageHandler = sendMessage;
 	
 	// 为发送按钮添加点击事件
 	// Add click event for send button

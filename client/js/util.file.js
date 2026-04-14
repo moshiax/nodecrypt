@@ -70,7 +70,7 @@ function generateFileId() {
 	return 'file_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 }
 
-function isValidFileId(fileId) {
+export function isValidFileId(fileId) {
 	return typeof fileId === 'string' && FILE_ID_PATTERN.test(fileId);
 }
 

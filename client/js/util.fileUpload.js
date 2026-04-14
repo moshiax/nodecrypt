@@ -333,7 +333,7 @@ function updateFileList() {
 	const summaryText = t('file.files_selected', '{count} files selected, {size} total')
 		.replace('{count}', selectedFiles.size)
 		.replace('{size}', formatFileSize(totalSize));
-	fileListSummary.innerHTML = summaryText;
+	fileListSummary.textContent = summaryText;
 }
 
 // Update send button state

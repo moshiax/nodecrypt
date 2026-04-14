@@ -380,6 +380,12 @@ export function updateChatInputStyle() {
 export function setupImagePreview() {
 	on($id('chat-area'), 'click', function(e) {
 		const target = e.target;
+		const downloadBtn = target.closest('.file-download-btn');
+		if (downloadBtn) {
+			const fileId = downloadBtn.dataset.fileId || '';
+			if (window.downloadFile && fileId) window.downloadFile(fileId);
+			return;
+		}
 		const avatarEl = target.closest('.bubble-other-wrap .avatar');
 		if (avatarEl) {
 			const bubbleWrap = avatarEl.closest('.bubble-other-wrap');
@@ -397,15 +403,22 @@ export function setupImagePreview() {
 // Show the image modal
 // 显示图片模态框
 export function showImageModal(src) {
+	const rawSrc = typeof src === 'string' ? src.trim() : '';
+	if (!rawSrc) return;
+	const normalizedSrc = rawSrc.toLowerCase();
+	const allowedScheme = /^(blob:|data:image\/|https?:\/\/|\/)/.test(normalizedSrc);
+	if (!allowedScheme) return;
 	const modal = createElement('div', {
 		class: 'img-modal-bg'
-	}, `<div class="img-modal-blur"></div><div class="img-modal-content img-modal-content-overflow"><img src="${src}"class="img-modal-img"/><span class="img-modal-close">&times;</span></div>`);
+	}, `<div class="img-modal-blur"></div><div class="img-modal-content img-modal-content-overflow"><img class="img-modal-img"/><span class="img-modal-close">&times;</span></div>`);
 	document.body.appendChild(modal);
+	const img = $('img', modal);
+	if (!img) return;
+	img.src = rawSrc;
 	on($('.img-modal-close', modal), 'click', () => modal.remove());
 	on(modal, 'click', (e) => {
 		if (e.target === modal) modal.remove()
 	});
-	const img = $('img', modal);
 	let scale = 1;
 	let isDragging = false;
 	let lastX = 0,
@@ -488,6 +501,7 @@ function renderFileMessage(fileData, isSender) {
 		originalSize,
 		totalVolumes
 	} = fileData;
+	const safeFileId = escapeHTML(typeof fileId === 'string' ? fileId : '');
 	const { displayName, displayMeta, iconHtml } = getFileDisplayInfo({
 		fileName,
 		fileType,
@@ -546,7 +560,7 @@ function renderFileMessage(fileData, isSender) {
 	const downloadIcon = ICONS.fileDownload;
 
 	return `
-		<div class="file-message" data-file-id="${fileId}">
+		<div class="file-message" data-file-id="${safeFileId}">
 			${previewHtml}
 				<div class="file-main-content">
 					<div class="file-info">
@@ -556,7 +570,7 @@ function renderFileMessage(fileData, isSender) {
 							<div class="file-meta">${displayMeta}</div>
 						</div>
 					</div>
-					<button class="file-download-btn show" style="${downloadBtnStyle}" onclick="window.downloadFile('${fileId}')">
+					<button class="file-download-btn show" style="${downloadBtnStyle}" data-file-id="${safeFileId}">
 						${downloadIcon}
 					</button>
 				</div>
