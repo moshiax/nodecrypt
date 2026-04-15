@@ -84,6 +84,28 @@ import {	renderUserList,       // 渲染用户列表 / Render user list
 
 let sendMessageHandler = async () => {};
 
+async function sendPrivateMessage(rd, messageType, payload, fallbackKey) {
+	const targetClient = rd?.chat?.channel?.[rd.privateChatTargetId];
+	if (!targetClient?.shared) {
+		addSystemMsg(`${t(fallbackKey, 'Cannot send private message to')} ${rd.privateChatTargetName}. ${t('system.user_not_connected', 'User might not be fully connected.')}`);
+		return false;
+	}
+	const clientMessagePayload = {
+		a: 'm',
+		t: messageType,
+		d: payload
+	};
+	const encryptedClientMessage = await rd.chat.encryptClientMessage(clientMessagePayload, targetClient.shared);
+	const serverRelayPayload = {
+		a: 'c',
+		p: encryptedClientMessage,
+		c: rd.privateChatTargetId
+	};
+	const encryptedMessageForServer = await rd.chat.encryptServerMessage(serverRelayPayload, rd.chat.serverShared);
+	rd.chat.sendMessage(encryptedMessageForServer);
+	return true;
+}
+
 // 设置全局配置参数
 // Set global configuration parameters
 window.config = {
@@ -211,25 +233,9 @@ window.addEventListener('DOMContentLoaded', () => {
 				};
 
 				if (rd.privateChatTargetId) {
-					// 私聊图片消息加密并发送
-					// Encrypt and send private image message
-					const targetClient = rd.chat.channel[rd.privateChatTargetId];
-					if (targetClient && targetClient.shared) {
-						const clientMessagePayload = {
-							a: 'm',
-							t: 'image_private',
-							d: messageContent
-						};
-						const encryptedClientMessage = await rd.chat.encryptClientMessage(clientMessagePayload, targetClient.shared);
-						const serverRelayPayload = {
-							a: 'c',
-							p: encryptedClientMessage,
-							c: rd.privateChatTargetId
-						};
-						const encryptedMessageForServer = await rd.chat.encryptServerMessage(serverRelayPayload, rd.chat.serverShared);						rd.chat.sendMessage(encryptedMessageForServer);
+					const sent = await sendPrivateMessage(rd, 'image_private', messageContent, 'system.private_message_failed');
+					if (sent) {
 						addMsg(messageContent, false, 'image_private');
-					} else {
-						addSystemMsg(`${t('system.private_message_failed', 'Cannot send private message to')} ${rd.privateChatTargetName}. ${t('system.user_not_connected', 'User might not be fully connected.')}`)
 					}
 				} else {
 					// 公共频道图片消息发送
@@ -243,25 +249,9 @@ window.addEventListener('DOMContentLoaded', () => {
 				// 发送纯文本消息
 				// Send text-only message
 				if (rd.privateChatTargetId) {
-					// 私聊消息加密并发送
-					// Encrypt and send private message
-					const targetClient = rd.chat.channel[rd.privateChatTargetId];
-					if (targetClient && targetClient.shared) {
-						const clientMessagePayload = {
-							a: 'm',
-							t: 'text_private',
-							d: text
-						};
-						const encryptedClientMessage = await rd.chat.encryptClientMessage(clientMessagePayload, targetClient.shared);
-						const serverRelayPayload = {
-							a: 'c',
-							p: encryptedClientMessage,
-							c: rd.privateChatTargetId
-						};
-						const encryptedMessageForServer = await rd.chat.encryptServerMessage(serverRelayPayload, rd.chat.serverShared);
-						rd.chat.sendMessage(encryptedMessageForServer);					addMsg(text, false, 'text_private');
-					} else {
-						addSystemMsg(`${t('system.private_message_failed', 'Cannot send private message to')} ${rd.privateChatTargetName}. ${t('system.user_not_connected', 'User might not be fully connected.')}`)
+					const sent = await sendPrivateMessage(rd, 'text_private', text, 'system.private_message_failed');
+					if (sent) {
+						addMsg(text, false, 'text_private');
 					}
 				} else {
 					// 公共频道消息发送
@@ -300,29 +290,9 @@ window.addEventListener('DOMContentLoaded', () => {
 				const userName = rd.myUserName || '';
 				const msgWithUser = { ...message, userName };
 				if (rd.privateChatTargetId) {
-					// 私聊文件加密并发送
-					// Encrypt and send private file message
-					const targetClient = rd.chat.channel[rd.privateChatTargetId];
-					if (targetClient && targetClient.shared) {
-						const clientMessagePayload = {
-							a: 'm',
-							t: msgWithUser.type + '_private',
-							d: msgWithUser
-						};
-						const encryptedClientMessage = await rd.chat.encryptClientMessage(clientMessagePayload, targetClient.shared);
-						const serverRelayPayload = {
-							a: 'c',
-							p: encryptedClientMessage,
-							c: rd.privateChatTargetId
-						};
-						const encryptedMessageForServer = await rd.chat.encryptServerMessage(serverRelayPayload, rd.chat.serverShared);
-						rd.chat.sendMessage(encryptedMessageForServer);
-						
-						// 添加到自己的聊天记录
-						if (msgWithUser.type === 'file_start') {
-							addMsg(msgWithUser, false, 'file_private');
-						}					} else {
-						addSystemMsg(`${t('system.private_file_failed', 'Cannot send private file to')} ${rd.privateChatTargetName}. ${t('system.user_not_connected', 'User might not be fully connected.')}`)
+					const sent = await sendPrivateMessage(rd, msgWithUser.type + '_private', msgWithUser, 'system.private_file_failed');
+					if (sent && msgWithUser.type === 'file_start') {
+						addMsg(msgWithUser, false, 'file_private');
 					}
 				} else {
 					// 公共频道文件发送
