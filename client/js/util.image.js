@@ -55,38 +55,9 @@ function t(key) {
 	return messages[key] || key
 }
 
-// Create image preview element for input
-// 为输入框创建图片预览元素
-function createImagePreview(dataUrl) {
-	const preview = createElement('div', {
-		class: 'input-image-preview'
-	});
-	
-	const img = createElement('img', {
-		src: dataUrl,
-		class: 'input-image-preview-img'
-	});
-	
-	const removeBtn = createElement('button', {
-		class: 'input-image-remove-btn',
-		type: 'button'
-	}, '×');
-	
-	preview.appendChild(img);
-	preview.appendChild(removeBtn);
-	
-	return { preview, removeBtn };
-}
-
-// Setup image paste functionality
-// 设置图片粘贴功能
 export function setupImagePaste(inputSelector) {
 	const input = $(inputSelector);
 	if (!input) return;
-
-	let currentImageDatas = []; // 支持多张图片
-	const imagePreviewContainer = createElement('div', { class: 'image-preview-container' });
-	input.parentNode.insertBefore(imagePreviewContainer, input);
 
 	// Function to update placeholder visibility
 	function updatePlaceholderVisibility() {
@@ -94,7 +65,7 @@ export function setupImagePaste(inputSelector) {
 		if (!placeholder) return;
 
 		const hasText = input.innerText.trim().length > 0;
-		const hasImages = currentImageDatas.length > 0;
+		const hasImages = false;
 
 		if (hasText || hasImages) {
 			placeholder.style.opacity = '0';
@@ -116,46 +87,9 @@ export function setupImagePaste(inputSelector) {
 		setTimeout(updatePlaceholderVisibility, 100);
 	});
 
-	on(input, 'paste', function(e) {
-		if (!e.clipboardData) return;
-
-		let imageProcessed = false;
-		for (const item of e.clipboardData.items) {
-			if (item.type.startsWith('image/')) {
-				const file = item.getAsFile();
-				if (!file) continue;
-
-				if (file.size > 8 * 1024 * 1024) {
-					alert(t('tooLarge'));
-					continue;
-				}
-
-				processImage(file, (dataUrl) => {
-					const { preview, removeBtn } = createImagePreview(dataUrl);
-					imagePreviewContainer.appendChild(preview);
-					currentImageDatas.push({ dataUrl, previewElement: preview });
-
-					on(removeBtn, 'click', () => {
-						preview.remove();
-						currentImageDatas = currentImageDatas.filter(img => img.dataUrl !== dataUrl);
-						updatePlaceholderVisibility();
-					});
-					updatePlaceholderVisibility();
-				});
-				imageProcessed = true;
-			}
-		}
-		if (imageProcessed) {
-			e.preventDefault();
-		}
-	});
 	return {
-		getCurrentImages: () => currentImageDatas.map(img => img.dataUrl), // 返回所有图片数据
-		clearImages: () => {
-			imagePreviewContainer.innerHTML = ''; // 清空预览容器
-			currentImageDatas = [];
-			updatePlaceholderVisibility();
-		},
+		getCurrentImages: () => [],
+		clearImages: () => {},
 		refreshPlaceholder: updatePlaceholderVisibility // 暴露 placeholder 更新函数
 	};
 }

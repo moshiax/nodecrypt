@@ -130,7 +130,7 @@ function createUploadModal() {
 
 // Show file upload modal
 // 显示文件上传模态框
-export function showFileUploadModal(onSend) {
+export async function showFileUploadModal(onSend, initialFiles = []) {
 	if (uploadModal) {
 		document.body.removeChild(uploadModal);
 	}
@@ -147,6 +147,22 @@ export function showFileUploadModal(onSend) {
 	setTimeout(() => {
 		addClass(uploadModal, 'show');
 	}, 10);
+
+	if (Array.isArray(initialFiles) && initialFiles.length > 0) {
+		await addFiles(initialFiles);
+	}
+}
+
+export async function addFilesToUploadModal(files, onSend) {
+	if (!Array.isArray(files) || files.length === 0) return;
+	if (!uploadModal) {
+		await showFileUploadModal(onSend, files);
+		return;
+	}
+	if (typeof onSend === 'function') {
+		onSendCallback = onSend;
+	}
+	await addFiles(files);
 }
 
 // Hide file upload modal

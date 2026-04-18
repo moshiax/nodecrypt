@@ -2,7 +2,7 @@
 // 导入必要的模块
 import { deflate, inflate } from 'fflate';
 import { parseBlob } from 'music-metadata';
-import { showFileUploadModal } from './util.fileUpload.js';
+import { showFileUploadModal, addFilesToUploadModal } from './util.fileUpload.js';
 import { escapeHTML } from './util.string.js';
 
 export function getFileDisplayInfo({
@@ -205,6 +205,24 @@ export function setupFileSend({
 	onSend
 }) {
 	const attachBtn = document.querySelector(attachBtnSelector);
+	const input = document.querySelector(inputSelector);
+
+	const openUploadModal = async (files = []) => {
+		const normalizedFiles = normalizeClipboardFiles(files);
+		const onModalSend = async (modalFiles) => {
+			const userName = window.roomsData && window.activeRoomIndex >= 0
+				? (window.roomsData[window.activeRoomIndex]?.myUserName || '')
+				: '';
+			await handleFilesUpload(modalFiles, (msg) => {
+				onSend({ ...msg, userName });
+			});
+		};
+		if (normalizedFiles.length > 0) {
+			await addFilesToUploadModal(normalizedFiles, onModalSend);
+		} else {
+			await showFileUploadModal(onModalSend);
+		}
+	};
 	
 	if (attachBtn) {
 		// 点击附件按钮显示文件上传模态框
@@ -212,19 +230,57 @@ export function setupFileSend({
 		attachBtn.addEventListener('click', (e) => {
 			e.preventDefault();
 			e.stopPropagation();
-			
-			showFileUploadModal(async (files) => {
-				// 传递 userName 给 onSend
-				const userName = window.roomsData && window.activeRoomIndex >= 0
-					? (window.roomsData[window.activeRoomIndex]?.myUserName || '')
-					: '';
-				await handleFilesUpload(files, (msg) => {
-					// 合并 userName 字段
-					onSend({ ...msg, userName });
-				});
-			});
+			openUploadModal();
 		});
 	}
+
+	if (input) {
+		input.addEventListener('paste', async (e) => {
+			if (!e.clipboardData) return;
+			const files = extractFilesFromClipboardData(e.clipboardData);
+			if (files.length === 0) return;
+			e.preventDefault();
+			await openUploadModal(files);
+		});
+	}
+}
+
+function extractFilesFromClipboardData(clipboardData) {
+	const files = [];
+	if (!clipboardData || !clipboardData.items) return files;
+	for (const item of clipboardData.items) {
+		if (item.kind !== 'file') continue;
+		const file = item.getAsFile();
+		if (file) files.push(file);
+	}
+	return files;
+}
+
+function normalizeClipboardFiles(files) {
+	if (!Array.isArray(files)) return [];
+	return files.map((file) => {
+		if (!(file instanceof File)) return file;
+		const normalizedName = normalizeFileName(file);
+		if (normalizedName === file.name) return file;
+		return new File([file], normalizedName, { type: file.type, lastModified: file.lastModified || Date.now() });
+	});
+}
+
+function normalizeFileName(file) {
+	const rawName = typeof file.name === 'string' ? file.name.trim() : '';
+	if (rawName) return rawName;
+	const now = Date.now();
+	const ext = inferExtension(file);
+	return `${now}.${ext}`;
+}
+
+function inferExtension(file) {
+	const mime = typeof file.type === 'string' ? file.type : '';
+	if (mime.includes('/')) {
+		const subtype = mime.split('/')[1].split(';')[0].trim();
+		if (subtype) return subtype === 'jpeg' ? 'jpg' : subtype;
+	}
+	return 'bin';
 }
 
 // Handle files upload

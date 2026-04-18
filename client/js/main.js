@@ -218,47 +218,19 @@ window.addEventListener('DOMContentLoaded', () => {
 	// Unified function to send messages
 	async function sendMessage() {
 		const text = input.innerText.trim(); // 获取输入的文本 / Get input text
-		const images = imagePasteHandler ? imagePasteHandler.getCurrentImages() : []; // 获取所有图片
 
-		if (!text && images.length === 0) return; // 如果没有文本且没有图片，则不发送
+		if (!text) return;
 		const rd = roomsData[activeRoomIndex]; // 当前房间数据 / Current room data
 		
 		if (rd && rd.chat) {
-			if (images.length > 0) {
-				// 发送包含图片的消息 (支持多图和文字合并)
-				// Send message with images (supports multiple images and text combined)
-				const messageContent = {
-					text: text || '', // 包含文字内容，如果有的话
-					images: images    // 包含所有图片数据
-				};
-
-				if (rd.privateChatTargetId) {
-					const sent = await sendPrivateMessage(rd, 'image_private', messageContent, 'system.private_message_failed');
-					if (sent) {
-						addMsg(messageContent, false, 'image_private');
-					}
-				} else {
-					// 公共频道图片消息发送
-					// Send image message to public channel
-					await rd.chat.sendChannelMessage('image', messageContent);
-					addMsg(messageContent, false, 'image');
+			if (rd.privateChatTargetId) {
+				const sent = await sendPrivateMessage(rd, 'text_private', text, 'system.private_message_failed');
+				if (sent) {
+					addMsg(text, false, 'text_private');
 				}
-				
-				imagePasteHandler.clearImages(); // 清除所有图片预览
-			} else if (text) {
-				// 发送纯文本消息
-				// Send text-only message
-				if (rd.privateChatTargetId) {
-					const sent = await sendPrivateMessage(rd, 'text_private', text, 'system.private_message_failed');
-					if (sent) {
-						addMsg(text, false, 'text_private');
-					}
-				} else {
-					// 公共频道消息发送
-					// Send public message
-					await rd.chat.sendChannelMessage('text', text);
-					addMsg(text);				}
-			}
+			} else {
+				await rd.chat.sendChannelMessage('text', text);
+				addMsg(text);				}
 			
 			// 清空输入框并触发 input 事件
 			// Clear input and trigger input event
