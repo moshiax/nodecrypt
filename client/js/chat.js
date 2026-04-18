@@ -42,7 +42,7 @@ function getYouTubeId(text = '') {
 }
 
 function renderYouTubePreview(text = '') {
-	if (!getSetting('previews')) return '';
+	if (!getSetting('youtubePreviews')) return '';
 	const id = getYouTubeId(text);
 	if (!id) return '';
 
@@ -51,6 +51,21 @@ function renderYouTubePreview(text = '') {
 	}
 
 	return `<div class="youtube-preview"><div class="js-plyr" data-plyr-provider="youtube" data-plyr-embed-id="${id}"></div></div>`;
+}
+
+function initImagePreviews(root = document) {
+	if (!root || !root.querySelectorAll) return;
+	root.querySelectorAll('.bubble-content img.bubble-img').forEach((img) => {
+		if (img.dataset.previewBound === '1') return;
+		const hidePreview = () => {
+			img.remove();
+		};
+		img.addEventListener('error', hidePreview, { once: true });
+		if (img.complete && img.naturalWidth === 0) {
+			hidePreview();
+		}
+		img.dataset.previewBound = '1';
+	});
 }
 
 function initPlyrPlayers(root = document) {
@@ -197,6 +212,7 @@ export function addMsg(text, isHistory = false, msgType = 'text', timestamp = nu
 		class: className
 	}, `<span class="bubble-content">${contentHtml}</span><span class="bubble-meta">${time}</span>`);
 	chatArea.appendChild(div);
+	initImagePreviews(div);
 	initPlyrPlayers(div);
 	initAudioWaveforms(div);
 	chatArea.scrollTop = chatArea.scrollHeight
@@ -257,6 +273,7 @@ export function addOtherMsg(msg, userName = '', avatar = '', isHistory = false, 
 		nameEl.style.color = userColor;
 	}
 	chatArea.appendChild(bubbleWrap);
+	initImagePreviews(bubbleWrap);
 	initPlyrPlayers(bubbleWrap);
 	initAudioWaveforms(bubbleWrap);
 	chatArea.scrollTop = chatArea.scrollHeight
@@ -442,12 +459,11 @@ function renderFileMessage(fileData, isSender) {
 	const safeDisplayName = escapeHTML(displayName);
 	const safePreviewSrc = previewData ? escapeHTML(previewData) : '';
 	let previewHtml = '';
-	const previewsEnabled = getSetting('previews');
-	if (previewsEnabled && safePreviewSrc && fileType.startsWith('image/')) {
+	if (safePreviewSrc && fileType.startsWith('image/')) {
 		previewHtml = `<img src="${safePreviewSrc}" alt="image preview" class="bubble-img">`;
-	} else if (previewsEnabled && safePreviewSrc && fileType.startsWith('audio/')) {
+	} else if (safePreviewSrc && fileType.startsWith('audio/') && document.createElement('audio').canPlayType(fileType) !== '') {
 		previewHtml = `<audio class="js-plyr" controls preload="metadata"><source src="${safePreviewSrc}" type="${escapeHTML(fileType)}"></audio>`;
-	} else if (previewsEnabled && safePreviewSrc && fileType.startsWith('video/')) {
+	} else if (safePreviewSrc && fileType.startsWith('video/') && document.createElement('video').canPlayType(fileType) !== '') {
 		previewHtml = `<video class="js-plyr" controls preload="metadata"><source src="${safePreviewSrc}" type="${escapeHTML(fileType)}"></video>`;
 	}
 	if (previewHtml) {

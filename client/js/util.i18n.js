@@ -49,7 +49,7 @@ const LANGUAGES = {
 			'settings.chinese': 'Chinese',
 			'settings.english': 'English',
 			'settings.chat': 'Chat Settings',
-			'settings.previews': 'Media previews',
+			'settings.youtube_previews': 'Youtube previews',
 			'settings.photo_exif_cleanup': 'Strip photos EXIF (PNG, JPG)',
 			
 			// File upload and transfer
@@ -194,7 +194,7 @@ const LANGUAGES = {
 			'settings.chinese': '中文',
 			'settings.english': 'English',
 			'settings.chat': '聊天设置',
-			'settings.previews': '媒体预览',
+			'settings.youtube_previews': 'YouTube 预览',
 			'settings.photo_exif_cleanup': '从照片（PNG、JPG）中移除 EXIF 信息',
 			
 			// File upload and transfer

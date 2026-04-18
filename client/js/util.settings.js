@@ -23,7 +23,7 @@ const SETTINGS_SCHEMA = {
 	sound: { default: false },
 	theme: { default: 'theme1' },
 	uiTheme: { default: 'light' },
-	previews: { default: true },
+	youtubePreviews: { default: true },
 	stripImageExif: { default: false },
 	language: { default: undefined }
 };
@@ -74,7 +74,7 @@ const SETTINGS_PANEL_SECTIONS = [
 	{
 		titleKey: 'settings.chat',
 		items: [
-			{ key: 'previews', type: 'toggle', labelKey: 'settings.previews' },
+			{ key: 'youtubePreviews', type: 'toggle', labelKey: 'settings.youtube_previews' },
 			{ key: 'stripImageExif', type: 'toggle', labelKey: 'settings.photo_exif_cleanup' }
 		]
 	}
