@@ -55,7 +55,7 @@ function renderYouTubePreview(text = '') {
 	if (!id) return '';
 
 	if (!canUseYouTubeEmbed) {
-		return `<div class="youtube-preview"><a href="https://www.youtube.com/watch?v=${id}" target="_blank" rel="noopener noreferrer">Open YouTube video</a></div>`;
+		return ``;
 	}
 
 	return `<div class="youtube-preview"><div class="js-plyr" data-plyr-provider="youtube" data-plyr-embed-id="${id}"></div></div>`;
@@ -87,31 +87,31 @@ function initAudioWaveforms(root = document) {
 				const h = Math.max(0.18, Math.min(1, amp));
 				bar.style.height = `${Math.round(h * 100)}%`;
 			});
-		};
-		activateBars(new Array(bars.length).fill(0.22));
-		if (!src) return;
-		fetch(src)
-			.then((res) => res.arrayBuffer())
-			.then((buffer) => {
-				const AudioCtx = window.AudioContext || window.webkitAudioContext;
-				if (!AudioCtx) return;
-				const ctx = new AudioCtx();
-				return ctx.decodeAudioData(buffer).then((audioBuffer) => {
-					const channelData = audioBuffer.getChannelData(0);
-					const blockSize = Math.floor(channelData.length / bars.length) || 1;
-					const waveformData = bars.map((_, i) => {
-						const start = i * blockSize;
-						const end = Math.min(start + blockSize, channelData.length);
-						let peak = 0;
-						for (let j = start; j < end; j++) peak = Math.max(peak, Math.abs(channelData[j]));
-						return peak;
+			};
+			activateBars(new Array(bars.length).fill(0.22));
+			if (!src) return;
+			fetch(src)
+				.then((res) => res.arrayBuffer())
+				.then((buffer) => {
+					const AudioCtx = window.AudioContext || window.webkitAudioContext;
+					if (!AudioCtx) return;
+					const ctx = new AudioCtx();
+					return ctx.decodeAudioData(buffer).then((audioBuffer) => {
+						const channelData = audioBuffer.getChannelData(0);
+						const blockSize = Math.floor(channelData.length / bars.length) || 1;
+						const waveformData = bars.map((_, i) => {
+							const start = i * blockSize;
+							const end = Math.min(start + blockSize, channelData.length);
+							let peak = 0;
+							for (let j = start; j < end; j++) peak = Math.max(peak, Math.abs(channelData[j]));
+							return peak;
+						});
+						const maxPeak = Math.max(...waveformData, 0.0001);
+						activateBars(waveformData.map((v) => v / maxPeak));
+						if (ctx.state !== 'closed') ctx.close();
 					});
-					const maxPeak = Math.max(...waveformData, 0.0001);
-					activateBars(waveformData.map((v) => v / maxPeak));
-					if (ctx.state !== 'closed') ctx.close();
-				});
-			})
-			.catch(() => {});
+				})
+				.catch(() => {});
 		const updateWaveProgress = () => {
 			const progress = audio.duration ? (audio.currentTime / audio.duration) : 0;
 			bars.forEach((bar, idx) => {
@@ -147,8 +147,6 @@ export function renderChatArea() {
 		else if (m.type === 'system') addSystemMsg(m.text, true, m.timestamp);
 		else addOtherMsg(m.text, m.userName, m.avatar, true, m.msgType || 'text', m.timestamp, m.clientId || null, m.userColor)
 	});
-	initPlyrPlayers(chatArea);
-	initAudioWaveforms(chatArea);
 }
 
 function formatMessageTime(ts) {
