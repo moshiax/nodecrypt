@@ -4,6 +4,7 @@ import { deflate, inflate } from 'fflate';
 import { parseBlob } from 'music-metadata';
 import { showFileUploadModal, addFilesToUploadModal } from './util.fileUpload.js';
 import { escapeHTML } from './util.string.js';
+import { getSetting } from './util.settings.js';
 
 export function getFileDisplayInfo({
 	fileName = '',
@@ -299,7 +300,9 @@ async function handleFilesUpload(files, onSend) {
 			// 删除系统提示
 		}
 		
-		for (const file of files) {
+		for (const sourceFile of files) {
+			const shouldStripImageExif = getSetting('stripImageExif');
+			const file = shouldStripImageExif ? await recreateImageWithoutExif(sourceFile) : sourceFile;
 			const fileId = generateFileId();
 			showProgress();
 			const previewData = await createFilePreviewData(file);
@@ -353,6 +356,62 @@ async function handleFilesUpload(files, onSend) {
 		if (window.addSystemMsg) {
 			window.addSystemMsg(`Failed to compress files: ${error.message}`);
 		}
+	}
+}
+
+async function recreateImageWithoutExif(file) {
+	if (!(file instanceof File) || !file.type.startsWith('image/')) return file;
+
+	if (file.type !== 'image/jpeg' && file.type !== 'image/png') return file;
+
+	let objectUrl = '';
+
+	try {
+		const bitmap = typeof createImageBitmap === 'function'
+			? await createImageBitmap(file, { imageOrientation: 'from-image' })
+			: await new Promise((res, rej) => {
+				const img = new Image();
+				objectUrl = URL.createObjectURL(file);
+
+				img.onload = () => {
+					URL.revokeObjectURL(objectUrl);
+					objectUrl = '';
+					res(img);
+				};
+
+				img.onerror = (err) => {
+					URL.revokeObjectURL(objectUrl);
+					objectUrl = '';
+					rej(err);
+				};
+
+				img.src = objectUrl;
+			});
+
+		const canvas = document.createElement('canvas');
+		const ctx = canvas.getContext('2d');
+		if (!ctx) return file;
+
+		canvas.width = bitmap.width;
+		canvas.height = bitmap.height;
+
+		ctx.drawImage(bitmap, 0, 0);
+		bitmap.close?.();
+
+		const blob = await new Promise((resolve) =>
+			canvas.toBlob(resolve, file.type)
+		);
+
+		if (!blob) return file;
+
+		return new File([blob], file.name, {
+			type: file.type,
+			lastModified: file.lastModified || Date.now()
+		});
+	} catch {
+		return file;
+	} finally {
+		if (objectUrl) URL.revokeObjectURL(objectUrl);
 	}
 }
 

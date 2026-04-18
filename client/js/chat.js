@@ -27,6 +27,7 @@ import {
 import {
 	t
 } from './util.i18n.js';
+import { getSetting } from './util.settings.js';
 import DOMPurify from 'dompurify';
 import Plyr from 'plyr';
 import { PLYR_CONFIG } from './util.plyr.js';
@@ -35,22 +36,13 @@ import { ICONS } from './util.icons.js';
 const youtubeRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]{11})/;
 const canUseYouTubeEmbed = typeof window !== 'undefined' && /^https?:$/.test(window.location.protocol);
 
-function arePreviewsEnabled() {
-	try {
-		const settings = JSON.parse(localStorage.getItem('settings') || '{}');
-		return settings.previews !== false;
-	} catch {
-		return true;
-	}
-}
-
 function getYouTubeId(text = '') {
 	const match = text.match(youtubeRegex);
 	return match ? match[1] : null;
 }
 
 function renderYouTubePreview(text = '') {
-	if (!arePreviewsEnabled()) return '';
+	if (!getSetting('previews')) return '';
 	const id = getYouTubeId(text);
 	if (!id) return '';
 
@@ -450,7 +442,7 @@ function renderFileMessage(fileData, isSender) {
 	const safeDisplayName = escapeHTML(displayName);
 	const safePreviewSrc = previewData ? escapeHTML(previewData) : '';
 	let previewHtml = '';
-	const previewsEnabled = arePreviewsEnabled();
+	const previewsEnabled = getSetting('previews');
 	if (previewsEnabled && safePreviewSrc && fileType.startsWith('image/')) {
 		previewHtml = `<img src="${safePreviewSrc}" alt="image preview" class="bubble-img">`;
 	} else if (previewsEnabled && safePreviewSrc && fileType.startsWith('audio/')) {

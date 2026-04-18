@@ -18,17 +18,67 @@ import { THEMES, getCurrentTheme, applyTheme } from './util.theme.js';
 // Import i18n utilities
 // 导入国际化工具函数
 import { t, setLanguage, getCurrentLanguage, initI18n } from './util.i18n.js';
-// Default settings
-// 默认设置
-const DEFAULT_SETTINGS = {
-	notify: false,
-	sound: false,
-	theme: 'theme1',
-	uiTheme: 'light',
-	previews: true
-	// 注意：我们不设置默认语言，让系统自动检测浏览器语言
-	// Note: We don't set a default language, let the system auto-detect browser language
+const SETTINGS_SCHEMA = {
+	notify: { default: false },
+	sound: { default: false },
+	theme: { default: 'theme1' },
+	uiTheme: { default: 'light' },
+	previews: { default: true },
+	stripImageExif: { default: false },
+	language: { default: undefined }
 };
+
+const DEFAULT_SETTINGS = Object.fromEntries(
+	Object.entries(SETTINGS_SCHEMA)
+		.filter(([, config]) => typeof config.default !== 'undefined')
+		.map(([key, config]) => [key, config.default])
+);
+
+const SETTINGS_PANEL_SECTIONS = [
+	{
+		titleKey: 'settings.notification',
+		items: [
+			{ key: 'notify', type: 'toggle', labelKey: 'settings.desktop_notifications' },
+			{ key: 'sound', type: 'toggle', labelKey: 'settings.sound_notifications' }
+		]
+	},
+	{
+		titleKey: 'settings.language',
+		items: [
+			{
+				key: 'language',
+				type: 'select',
+				labelKey: 'settings.language_switch',
+				options: [
+					{ value: 'en', label: '🇺🇸 English' },
+					{ value: 'zh', label: '🇨🇳 中文' }
+				]
+			}
+		]
+	},
+	{
+		titleKey: 'settings.theme',
+		items: [
+			{
+				key: 'uiTheme',
+				type: 'select',
+				labelKey: 'settings.ui_theme',
+				options: [
+					{ value: 'amoled', label: 'AMOLED' },
+					{ value: 'light', label: 'Light' }
+				]
+			},
+			{ key: 'theme', type: 'themePicker' }
+		]
+	},
+	{
+		titleKey: 'settings.chat',
+		items: [
+			{ key: 'previews', type: 'toggle', labelKey: 'settings.previews' },
+			{ key: 'stripImageExif', type: 'toggle', labelKey: 'settings.photo_exif_cleanup' }
+		]
+	}
+];
 
 // Load settings from localStorage
 // 从 localStorage 加载设置
@@ -48,28 +98,76 @@ function loadSettings() {
 // Save settings to localStorage
 // 保存设置到 localStorage
 function saveSettings(settings) {
-	const {
-		notify,
-		sound,
-		theme,
-		language,
-		uiTheme,
-		previews
-	} = settings;
-	localStorage.setItem('settings', JSON.stringify({
-		notify,
-		sound,
-		theme,
-		language,
-		uiTheme,
-		previews
-	}))
+	const persistedSettings = Object.keys(SETTINGS_SCHEMA).reduce((acc, key) => {
+		if (typeof settings[key] !== 'undefined') {
+			acc[key] = settings[key];
+		}
+		return acc;
+	}, {});
+	localStorage.setItem('settings', JSON.stringify(persistedSettings))
 }
 
+export function getSetting(key) {
+	const settings = loadSettings();
+
+	if (key in settings) return settings[key];
+	return SETTINGS_SCHEMA[key]?.default;
+}
 function applyUITheme(uiTheme) {
 	const theme = uiTheme || 'light';
 	document.documentElement.setAttribute('data-ui-theme', theme);
 	document.body.setAttribute('data-ui-theme', theme);
+}
+
+function renderSettingsItem(settings, item) {
+	if (item.type === 'themePicker') {
+		return `
+			<div class="theme-selector" id="theme-selector">
+				${THEMES.map(theme => `
+					<div class="theme-item ${settings.theme === theme.id ? 'active' : ''}" data-theme-id="${theme.id}" style="background: ${theme.background}; background-size: cover; background-position: center;">
+					</div>
+				`).join('')}
+			</div>
+		`;
+	}
+
+	const label = t(item.labelKey);
+	if (item.type === 'toggle') {
+		return `
+			<div class="settings-item">
+				<div class="settings-item-label"><div>${label}</div></div>
+				<label class="switch">
+					<input type="checkbox" data-setting-key="${item.key}" ${settings[item.key] ? 'checked' : ''}>
+					<span class="slider"></span>
+				</label>
+			</div>
+		`;
+	}
+
+	if (item.type === 'select') {
+		const optionsHtml = (item.options || []).map((option) => `
+			<option value="${option.value}" ${settings[item.key] === option.value ? 'selected' : ''}>${option.label}</option>
+		`).join('');
+		return `
+			<div class="settings-item">
+				<div class="settings-item-label"><div>${label}</div></div>
+				<div class="language-selector">
+					<select class="language-select" data-setting-key="${item.key}">${optionsHtml}</select>
+				</div>
+			</div>
+		`;
+	}
+
+	return '';
+}
+
+function renderSettingsPanel(settings) {
+	return SETTINGS_PANEL_SECTIONS.map((section) => `
+		<div class="settings-section">
+			<div class="settings-section-title">${t(section.titleKey, section.titleFallback)}</div>
+			${section.items.map((item) => renderSettingsItem(settings, item)).join('')}
+		</div>
+	`).join('');
 }
 
 // Apply settings to the document
@@ -104,116 +202,29 @@ function setupSettingsPanel() {
 	// 更新设置标题
 	if (settingsTitle) {
 		settingsTitle.textContent = t('settings.title', 'Settings');
-	}// Create settings content HTML
-	settingsContent.innerHTML = `
-		<div class="settings-section">
-			<div class="settings-section-title">${t('settings.notification', 'Notification Settings')}</div>
-			<div class="settings-item">
-				<div class="settings-item-label">
-					<div>${t('settings.desktop_notifications', 'Desktop Notifications')}</div>
-				</div>
-				<label class="switch">
-					<input type="checkbox" id="settings-notify" ${settings.notify ? 'checked' : ''}>
-					<span class="slider"></span>
-				</label>
-			</div>
-			<div class="settings-item">
-				<div class="settings-item-label">
-					<div>${t('settings.sound_notifications', 'Sound Notifications')}</div>
-				</div>
-				<label class="switch">
-					<input type="checkbox" id="settings-sound" ${settings.sound ? 'checked' : ''}>
-					<span class="slider"></span>
-				</label>
-			</div>
-		</div>
-				<div class="settings-section">
-			<div class="settings-section-title">${t('settings.language', 'Language Settings')}</div>
-			<div class="settings-item">
-				<div class="settings-item-label">
-					<div>${t('settings.language_switch', 'Language')}</div>
-				</div>
-				<div class="language-selector">
-					<select id="settings-language" class="language-select">
-						<option value="en" ${settings.language === 'en' ? 'selected' : ''}>🇺🇸 English</option>
-						<option value="zh" ${settings.language === 'zh' ? 'selected' : ''}>🇨🇳 中文</option>
-					</select>
-				</div>
-			</div>
-		</div>
-		
-		<div class="settings-section">
-			<div class="settings-section-title">${t('settings.theme', 'Theme Settings')}</div>
-			<div class="settings-item">
-				<div class="settings-item-label">
-					<div>UI Theme</div>
-				</div>
-					<div class="language-selector">
-						<select id="settings-ui-theme" class="language-select">
-							<option value="amoled" ${settings.uiTheme === 'amoled' ? 'selected' : ''}>AMOLED</option>
-							<option value="light" ${settings.uiTheme === 'light' ? 'selected' : ''}>Light</option>
-						</select>
-					</div>
-					</div>
-				<div class="theme-selector" id="theme-selector">
-					${THEMES.map(theme => `
-					<div class="theme-item ${settings.theme === theme.id ? 'active' : ''}" data-theme-id="${theme.id}" style="background: ${theme.background}; background-size: cover; background-position: center;">
-					</div>
-				`).join('')}
-				</div>
-			</div>
-			<div class="settings-section">
-				<div class="settings-section-title">${t('settings.chat', 'Chat Settings')}</div>
-				<div class="settings-item">
-					<div class="settings-item-label">
-						<div>${t('settings.previews', 'Media previews')}</div>
-					</div>
-					<label class="switch">
-						<input type="checkbox" id="settings-previews" ${settings.previews ? 'checked' : ''}>
-						<span class="slider"></span>
-					</label>
-				</div>
-			</div>		`;	const notifyCheckbox = $('#settings-notify', settingsContent);
-	const soundCheckbox = $('#settings-sound', settingsContent);
-	const languageSelect = $('#settings-language', settingsContent);
-	const uiThemeSelect = $('#settings-ui-theme', settingsContent);
-	const previewsCheckbox = $('#settings-previews', settingsContent);
-	
-	// Language select event handler
-	// 语言选择事件处理
-	on(languageSelect, 'change', e => {
-		const newLanguage = e.target.value;
-		settings.language = newLanguage;
-		
-		// Set language immediately
-		// 立即设置语言
-		setLanguage(newLanguage);
-		
-		// Save settings
-		// 保存设置
-		saveSettings(settings);
-		applySettings(settings);
-		
-		// Refresh the settings panel to show updated translations
-		// 刷新设置面板以显示更新的翻译
-		setTimeout(() => {
-			setupSettingsPanel();
-		}, 100);
+	}
+	settingsContent.innerHTML = renderSettingsPanel(settings);
+	const notifyCheckbox = $('[data-setting-key="notify"]', settingsContent);
+	const soundCheckbox = $('[data-setting-key="sound"]', settingsContent);
+
+	$$('[data-setting-key]', settingsContent).forEach((control) => {
+		on(control, 'change', (e) => {
+			const key = e.target.getAttribute('data-setting-key');
+			if (!key || key === 'notify' || key === 'sound') return;
+			settings[key] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+			saveSettings(settings);
+			if (key === 'uiTheme') {
+				applyUITheme(settings.uiTheme);
+			}
+			if (key === 'language') {
+				setLanguage(settings.language);
+				applySettings(settings);
+				setTimeout(() => {
+					setupSettingsPanel();
+				}, 100);
+			}
+		});
 	});
-	
-	if (uiThemeSelect) {
-		on(uiThemeSelect, 'change', e => {
-			settings.uiTheme = e.target.value;
-			applyUITheme(settings.uiTheme);
-			saveSettings(settings);
-		});
-	}
-	if (previewsCheckbox) {
-		on(previewsCheckbox, 'change', e => {
-			settings.previews = e.target.checked;
-			saveSettings(settings);
-		});
-	}
 
 
 	on(notifyCheckbox, 'change', e => {

@@ -391,4 +391,8 @@ on(document, 'keydown', (e) => {
 	if (e.key === 'Escape') {
 		hideUploadModal();
 	}
+
+	if (e.key === 'Enter') {
+		handleSendFiles();
+	}
 });
