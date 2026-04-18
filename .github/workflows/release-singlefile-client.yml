@@ -96,7 +96,10 @@ jobs:
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/$OWNER/$REPO/releases?per_page=100")
 
-          echo "$releases" | jq -r '.[] | "\(.id) \(.tag_name)"' > releases.txt
+          echo "$releases" | jq -r '
+            sort_by(.created_at) | reverse |
+            .[] | "\(.id) \(.tag_name) \(.created_at)"
+          ' > releases.txt
 
           total=$(wc -l < releases.txt)
           echo "Total releases: $total"
@@ -104,8 +107,8 @@ jobs:
           if [ "$total" -le 3 ]; then
             echo "Nothing to delete (releases)"
           else
-            echo "$releases" | jq -r '.[] | "\(.id) \(.tag_name)"' | tail -n +4 | while read id tag; do
-              echo "Deleting release: $id ($tag)"
+            tail -n +4 releases.txt | while read id tag created; do
+              echo "Deleting release: $id ($tag) [$created]"
 
               # delete release
               curl -s -X DELETE \
@@ -115,6 +118,7 @@ jobs:
 
               curl -s -X DELETE \
                 -H "Authorization: token $GITHUB_TOKEN" \
+                -H "Accept: application/vnd.github+json" \
                 "https://api.github.com/repos/$OWNER/$REPO/git/refs/tags/$tag" || true
             done
           fi
@@ -126,7 +130,11 @@ jobs:
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/$OWNER/$REPO/actions/runs?per_page=100")
 
-          echo "$runs" | jq -r '.workflow_runs[] | "\(.id)"' > runs.txt
+          echo "$runs" | jq -r '
+            .workflow_runs
+            | sort_by(.created_at) | reverse
+            | .[] | "\(.id) \(.created_at)"
+          ' > runs.txt
 
           total_runs=$(wc -l < runs.txt)
           echo "Total runs: $total_runs"
@@ -134,8 +142,8 @@ jobs:
           if [ "$total_runs" -le 3 ]; then
             echo "Nothing to delete (runs)"
           else
-            echo "$runs" | jq -r '.workflow_runs[] | "\(.id)"' | tail -n +4 | while read run_id; do
-              echo "Deleting workflow run: $run_id"
+            tail -n +4 runs.txt | while read run_id created; do
+              echo "Deleting workflow run: $run_id [$created]"
 
               curl -s -X DELETE \
                 -H "Authorization: token $GITHUB_TOKEN" \
