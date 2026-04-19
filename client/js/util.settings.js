@@ -25,6 +25,7 @@ const SETTINGS_SCHEMA = {
 	uiTheme: { default: 'light' },
 	youtubePreviews: { default: true },
 	stripImageExif: { default: false },
+	timestampWindowSec: { default: 10 },
 	language: { default: undefined }
 };
 
@@ -75,7 +76,8 @@ const SETTINGS_PANEL_SECTIONS = [
 		titleKey: 'settings.chat',
 		items: [
 			{ key: 'youtubePreviews', type: 'toggle', labelKey: 'settings.youtube_previews' },
-			{ key: 'stripImageExif', type: 'toggle', labelKey: 'settings.photo_exif_cleanup' }
+			{ key: 'stripImageExif', type: 'toggle', labelKey: 'settings.photo_exif_cleanup' },
+			{ key: 'timestampWindowSec', type: 'number', min: 1, max: 3600, step: 1, labelKey: 'settings.timestamp_window' }
 		]
 	}
 ];
@@ -158,6 +160,26 @@ function renderSettingsItem(settings, item) {
 		`;
 	}
 
+	if (item.type === 'number') {
+		const safeValue = Number.isFinite(Number(settings[item.key])) ? Number(settings[item.key]) : Number(item.min || 1);
+		return `
+			<div class="settings-item">
+				<div class="settings-item-label"><div>${label}</div></div>
+				<div class="language-selector">
+					<input
+						class="language-select"
+						type="number"
+						data-setting-key="${item.key}"
+						value="${safeValue}"
+						min="${item.min || 1}"
+						max="${item.max || 3600}"
+						step="${item.step || 1}"
+					/>
+				</div>
+			</div>
+		`;
+	}
+
 	return '';
 }
 
@@ -211,7 +233,16 @@ function setupSettingsPanel() {
 		on(control, 'change', (e) => {
 			const key = e.target.getAttribute('data-setting-key');
 			if (!key || key === 'notify' || key === 'sound') return;
-			settings[key] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+			if (e.target.type === 'number') {
+				const raw = Number(e.target.value);
+				const min = Number(e.target.min || 1);
+				const max = Number(e.target.max || 3600);
+				const safe = Math.max(min, Math.min(max, Number.isFinite(raw) ? raw : min));
+				e.target.value = String(safe);
+				settings[key] = safe;
+			} else {
+				settings[key] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+			}
 			saveSettings(settings);
 			if (key === 'uiTheme') {
 				applyUITheme(settings.uiTheme);

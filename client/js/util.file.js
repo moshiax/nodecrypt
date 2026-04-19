@@ -68,7 +68,11 @@ function base64ToArrayBuffer(base64) {
 // Generate unique file ID
 // 生成唯一文件ID
 function generateFileId() {
-	return 'file_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+	const timestampSec = Math.floor(Date.now() / 1000);
+	const fileUuid = (window.crypto && typeof window.crypto.randomUUID === 'function')
+		? window.crypto.randomUUID().replace(/-/g, '').toLowerCase().slice(0, 32)
+		: Array.from(crypto.getRandomValues(new Uint8Array(16))).map((b) => b.toString(16).padStart(2, '0')).join('');
+	return `file_${timestampSec}_${fileUuid}`;
 }
 
 export function isValidFileId(fileId) {
@@ -677,7 +681,7 @@ export function handleFileMessage(message, isPrivate = false) {
 // Handle file start message
 // 处理文件开始消息
 function handleFileStart(message, isPrivate) {
-	const { fileId, fileName, fileType = '', previewData = null, coverData = null, audioTitle = null, audioArtist = null, originalSize, compressedSize, totalVolumes, originalHash, userName, clientId = null, avatar = '', userColor = null } = message;
+	const { fileId, fileName, fileType = '', previewData = null, coverData = null, audioTitle = null, audioArtist = null, originalSize, compressedSize, totalVolumes, originalHash, userName, clientId = null, avatar = '', userColor = null, securityMeta = null } = message;
 	
 	const fileTransfer = {
 		fileId,
@@ -715,7 +719,7 @@ function handleFileStart(message, isPrivate) {
 			userName
 		};
 		
-		window.addOtherMsg(displayData, userName, avatar, false, isPrivate ? 'file_private' : 'file', null, clientId, userColor);
+		window.addOtherMsg(displayData, userName, avatar, false, isPrivate ? 'file_private' : 'file', null, clientId, userColor, securityMeta);
 	}
 }
 

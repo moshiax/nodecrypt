@@ -152,7 +152,7 @@ export function renderChatArea() {
 	roomsData[activeRoomIndex].messages.forEach(m => {
 		if (m.type === 'me') addMsg(m.text, true, m.msgType || 'text', m.timestamp);
 		else if (m.type === 'system') addSystemMsg(m.text, true, m.timestamp);
-		else addOtherMsg(m.text, m.userName, m.avatar, true, m.msgType || 'text', m.timestamp, m.clientId || null, m.userColor)
+		else addOtherMsg(m.text, m.userName, m.avatar, true, m.msgType || 'text', m.timestamp, m.clientId || null, m.userColor, m.securityMeta || null)
 	});
 }
 
@@ -190,6 +190,20 @@ function renderMessageContent(payload, msgType, isSender) {
 	return textToHTML(payload) + renderYouTubePreview(typeof payload === 'string' ? payload : '');
 }
 
+function renderSecurityIndicator(securityMeta = null) {
+	if (!securityMeta || typeof securityMeta !== 'object') return '';
+	if (securityMeta.status === 'missing_timestamp') {
+		return `<span class="bubble-security-indicator missing" title="${escapeHTML(securityMeta.hint || '')}" aria-label="missing timestamp"></span>`;
+	}
+	if (securityMeta.status === 'replay_detected') {
+		return `<span class="bubble-security-indicator replay" title="${escapeHTML(securityMeta.hint || '')}" aria-label="replay warning">!</span>`;
+	}
+	if (securityMeta.status === 'expired_timestamp') {
+		return `<span class="bubble-security-indicator expired" title="${escapeHTML(securityMeta.hint || '')}" aria-label="expired timestamp"></span>`;
+	}
+	return '';
+}
+
 // Add a message to the chat area
 // 添加消息到聊天区域
 export function addMsg(text, isHistory = false, msgType = 'text', timestamp = null) {
@@ -220,17 +234,17 @@ export function addMsg(text, isHistory = false, msgType = 'text', timestamp = nu
 
 // Add a message from another user to the chat area
 // 添加来自其他用户的消息到聊天区域
-export function addOtherMsg(msg, userName = '', avatar = '', isHistory = false, msgType = 'text', timestamp = null, clientId = null, userColor = null) {
+export function addOtherMsg(msg, userName = '', avatar = '', isHistory = false, msgType = 'text', timestamp = null, clientId = null, userColor = null, securityMeta = null) {
 	if (!userName && activeRoomIndex >= 0) {
 		const rd = roomsData[activeRoomIndex];
 		// 优先使用文件消息自带的 userName 字段
 		if (msg && msg.userName) {
 			userName = msg.userName;
 		} else if (rd && msg && msg.clientId && rd.userMap[msg.clientId]) {
-			userName = rd.userMap[msg.clientId].userName || rd.userMap[msg.clientId].username || rd.userMap[msg.clientId].name || t('ui.anonymous', 'Anonymous')
+			userName = rd.userMap[msg.clientId].userName || rd.userMap[msg.clientId].username || rd.userMap[msg.clientId].name || t('ui.anonymous')
 		}
 	}
-	userName = userName || t('ui.anonymous', 'Anonymous');
+	userName = userName || t('ui.anonymous');
 	let ts = isHistory ? timestamp : (timestamp || Date.now());
 	if (!ts) return;
 	const chatArea = $id('chat-area');
@@ -243,6 +257,7 @@ export function addOtherMsg(msg, userName = '', avatar = '', isHistory = false, 
 	}
 	bubbleWrap.dataset.userName = userName;
 	const time = formatMessageTime(ts);
+	const securityHtml = renderSecurityIndicator(securityMeta);
 	let bubbleClasses = 'bubble other';
 	if (msgType && msgType.includes('_private')) {
 		bubbleClasses += ' private-message'
@@ -250,7 +265,7 @@ export function addOtherMsg(msg, userName = '', avatar = '', isHistory = false, 
 	if (msgType === 'file' || msgType === 'file_private') {
 		bubbleClasses += ' file-bubble';
 	}
-	bubbleWrap.innerHTML = `<span class="avatar"></span><div class="bubble-other-main"><div class="${bubbleClasses}"><div class="bubble-other-name">${safeUserName}</div><span class="bubble-content">${contentHtml}</span><span class="bubble-meta">${time}</span></div></div>`;
+	bubbleWrap.innerHTML = `<span class="avatar"></span><div class="bubble-other-main"><div class="${bubbleClasses}"><div class="bubble-other-name-row"><div class="bubble-other-name">${safeUserName}</div>${securityHtml}</div><span class="bubble-content">${contentHtml}</span><span class="bubble-meta">${time}</span></div></div>`;
 	let avatarSeed = avatar;
 	let fingerprint = '';
 	if (!avatarSeed && activeRoomIndex >= 0 && clientId) {
@@ -310,11 +325,11 @@ export function updateChatInputStyle() {
 	if (!chatInputArea || !placeholder || !inputMessageInput) return;	if (rd && rd.privateChatTargetId) {
 		addClass(chatInputArea, 'private-mode');
 		addClass(inputMessageInput, 'private-mode');
-		placeholder.textContent = `${t('ui.private_message_to', 'Private Message to')} ${escapeHTML(rd.privateChatTargetName)}`
+		placeholder.textContent = `${t('ui.private_message_to')} ${escapeHTML(rd.privateChatTargetName)}`
 	} else {
 		removeClass(chatInputArea, 'private-mode');
 		removeClass(inputMessageInput, 'private-mode');
-		placeholder.textContent = t('ui.message', 'Message')
+		placeholder.textContent = t('ui.message')
 	}
 	const html = inputMessageInput.innerHTML.replace(/<br\s*\/?>(\s*)?/gi, '').replace(/&nbsp;/g, '').replace(/\u200B/g, '').trim();
 	placeholder.style.opacity = (html === '') ? '1' : '0'
@@ -335,7 +350,7 @@ export function setupImagePreview() {
 		if (avatarEl) {
 			const bubbleWrap = avatarEl.closest('.bubble-other-wrap');
 			if (bubbleWrap && bubbleWrap.dataset && bubbleWrap.dataset.clientId) {
-				togglePrivateChat(bubbleWrap.dataset.clientId, bubbleWrap.dataset.userName || t('ui.anonymous', 'Anonymous'));
+				togglePrivateChat(bubbleWrap.dataset.clientId, bubbleWrap.dataset.userName || t('ui.anonymous'));
 			}
 			return;
 		}

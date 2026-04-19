@@ -51,6 +51,7 @@ const LANGUAGES = {
 			'settings.chat': 'Chat Settings',
 			'settings.youtube_previews': 'Youtube previews',
 			'settings.photo_exif_cleanup': 'Strip photos EXIF (PNG, JPG)',
+			'settings.timestamp_window': 'Timestamp window (seconds)',
 			
 			// File upload and transfer
 			'file.selected_files': 'Selected Files',
@@ -113,6 +114,10 @@ const LANGUAGES = {
 			'security.replace_trusted_key': 'Replace trusted key',
 			'security.keep_old_key': 'Keep old key',
 			'security.token_trust_prompt': 'This room token includes a server public key for {domain}. Trust and save it?',
+			'security.no_timestamp': 'No timestamp included in message',
+			'security.timestamp_expired': 'Timestamp expired {seconds} seconds ago.',
+			'security.replay_detected': 'Replay attack suspected: duplicate message ID received.',
+			'security.message_rejected_missing_meta': 'Rejected incoming message: missing message id or timestamp.',
 					// Help page
 			'help.title': 'User Guide',
 			'help.back_to_login': 'Back to Login',
@@ -196,6 +201,7 @@ const LANGUAGES = {
 			'settings.chat': '聊天设置',
 			'settings.youtube_previews': 'YouTube 预览',
 			'settings.photo_exif_cleanup': '从照片（PNG、JPG）中移除 EXIF 信息',
+			'settings.timestamp_window': '时间戳窗口（秒）',
 			
 			// File upload and transfer
 			'file.selected_files': '已选择的文件',
@@ -259,6 +265,10 @@ const LANGUAGES = {
 			'security.replace_trusted_key': '替换已信任密钥',
 			'security.keep_old_key': '保留旧密钥',
 			'security.token_trust_prompt': '该房间令牌包含 {domain} 的服务器公钥。是否信任并保存？',
+			'security.no_timestamp': '消息中未包含时间戳',
+			'security.timestamp_expired': '时间戳已过期 {seconds} 秒。',
+			'security.replay_detected': '检测到重放攻击：收到重复的消息 ID。',
+			'security.message_rejected_missing_meta': '已拒绝传入消息：缺少消息 ID 或时间戳。',
 			
 			// Help page
 			'help.title': '使用说明',

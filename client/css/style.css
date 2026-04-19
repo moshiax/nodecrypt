@@ -230,6 +230,8 @@ flex-direction: column;
 /* 语言选择器样式 */
 .language-selector {
 	position: relative;
+	width: 100%;
+	max-width: 140px;
 }
 
 .language-select {
@@ -245,6 +247,8 @@ flex-direction: column;
 	-webkit-appearance: none;
 	-moz-appearance: none;
 	min-width: 120px;
+	width: 100%;
+	box-sizing: border-box;
 	transition: border-color 0.2s ease, box-shadow 0.2s ease;
 	background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
 	background-repeat: no-repeat;
@@ -681,7 +685,9 @@ flex-direction: column;
 	position: absolute;
 	right: 3px;
 	bottom: 7px;
-	display: inline-block;
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
 	background: transparent;
 	line-height: 1;
 }
@@ -711,6 +717,35 @@ flex-direction: column;
 	font-size: 12px;
 	color: var(--ui-text-faint);
 	text-align: right;
+}
+
+.bubble-security-indicator {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 10px;
+	height: 10px;
+	border-radius: 50%;
+	flex: 0 0 auto;
+}
+
+.bubble-security-indicator.missing {
+	background: #f3c623;
+}
+
+.bubble-security-indicator.expired {
+	background: #e53935;
+}
+
+.bubble-security-indicator.replay {
+	width: 12px;
+	height: 12px;
+	border-radius: 3px;
+	background: #e53935;
+	color: #fff;
+	font-weight: 700;
+	font-size: 10px;
+	line-height: 1;
 }
 
 /* Special positioning for file message bubbles */
@@ -773,6 +808,12 @@ flex-direction: column;
 	font-size: 13px;
 	font-weight: 500;
 	margin-left: -5px;
+}
+
+.bubble-other-name-row {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
 }
 
 .chat-input-area {

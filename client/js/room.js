@@ -28,6 +28,7 @@ import {
 } from './util.dom.js';
 import { t } from './util.i18n.js';
 import { isValidFileId } from './util.file.js';
+import { getSetting } from './util.settings.js';
 let roomsData = [];
 let activeRoomIndex = -1;
 
@@ -53,8 +54,127 @@ export function getNewRoomData() {
 		roomFingerprint: '',
 		serverInput: '',
 		serverHost: '',
-		wsProtocol: 'ws'
+		wsProtocol: 'ws',
+		replayMessageIds: new Map()
 	}
+}
+
+function getTimestampWindowSec() {
+	const configured = Number(getSetting('timestampWindowSec'));
+	if (!Number.isFinite(configured)) return 10;
+	return Math.max(1, Math.floor(configured));
+}
+
+function cleanupReplayCache(rd, nowMs = Date.now()) {
+	if (!rd?.replayMessageIds) return;
+	for (const [messageId, expiresAt] of rd.replayMessageIds.entries()) {
+		if (!Number.isFinite(expiresAt) || expiresAt <= nowMs) {
+			rd.replayMessageIds.delete(messageId);
+		}
+	}
+}
+
+function buildMessageSecurityMeta(rd, messageId, timestampSec) {
+	const nowMs = Date.now();
+	const nowSec = Math.floor(nowMs / 1000);
+	const timestampWindowSec = getTimestampWindowSec();
+	cleanupReplayCache(rd, nowMs);
+	let status = 'ok';
+	let hint = '';
+	let secondsAgo = 0;
+
+	if ((nowSec - timestampSec) > timestampWindowSec) {
+		status = 'expired_timestamp';
+		secondsAgo = nowSec - timestampSec;
+		hint = t('security.timestamp_expired').replace('{seconds}', String(secondsAgo));
+	}
+
+	if (rd.replayMessageIds.has(messageId)) {
+		status = 'replay_detected';
+		hint = t('security.replay_detected');
+	} else {
+		rd.replayMessageIds.set(messageId, nowMs + (timestampWindowSec * 2000));
+	}
+
+	return {
+		status,
+		hint,
+		secondsAgo,
+		messageId,
+		timestampSec
+	};
+}
+
+const TEXT_SECURITY_SUFFIX_REGEX = /(?:\r?\n)?\{([0-9]{10,20})-([a-z0-9]{6,32})\}\s*$/i;
+const FILE_SECURITY_ID_REGEX = /^file_([0-9]{10,20})_([a-z0-9]{6,32})$/i;
+
+function unwrapIncomingPayload(rd, msgType, rawData) {
+	if (msgType && msgType.startsWith('file_')) {
+		const fileId = rawData && typeof rawData === 'object' ? rawData.fileId : '';
+		const match = (typeof fileId === 'string') ? fileId.match(FILE_SECURITY_ID_REGEX) : null;
+		if (!match) {
+			return {
+				rejected: false,
+				payload: rawData,
+				securityMeta: {
+					status: 'missing_timestamp',
+					hint: t('security.no_timestamp'),
+					secondsAgo: 0,
+					messageId: '',
+					timestampSec: null
+				}
+			};
+		}
+		let timestampSec = Number(match[1]);
+		if (timestampSec > 9999999999) {
+			timestampSec = Math.floor(timestampSec / 1000);
+		}
+		const messageId = String(match[2] || '').toLowerCase();
+		return {
+			payload: rawData,
+			securityMeta: buildMessageSecurityMeta(rd, messageId, timestampSec),
+			rejected: false
+		};
+	}
+
+	if (typeof rawData === 'string') {
+		const match = rawData.match(TEXT_SECURITY_SUFFIX_REGEX);
+		if (!match) {
+			return {
+				rejected: false,
+				payload: rawData,
+				securityMeta: {
+					status: 'missing_timestamp',
+					hint: t('security.no_timestamp'),
+					secondsAgo: 0,
+					messageId: '',
+					timestampSec: null
+				}
+			};
+		}
+		let timestampSec = Number(match[1]);
+		if (timestampSec > 9999999999) {
+			timestampSec = Math.floor(timestampSec / 1000);
+		}
+		const messageId = String(match[2] || '').toLowerCase();
+		const cleanText = rawData.replace(TEXT_SECURITY_SUFFIX_REGEX, '').trimEnd();
+		return {
+			rejected: false,
+			payload: cleanText,
+			securityMeta: buildMessageSecurityMeta(rd, messageId, timestampSec)
+		};
+	}
+	return {
+		rejected: false,
+		payload: rawData,
+		securityMeta: {
+			status: 'missing_timestamp',
+			hint: t('security.no_timestamp'),
+			secondsAgo: 0,
+			messageId: '',
+			timestampSec: null
+		}
+	};
 }
 
 function decorateUser(user) {
@@ -162,7 +282,7 @@ export async function joinRoom(userName, roomName, password, serverConfig, token
 				closed = true;
 				onResult(true)
 			}
-				addSystemMsg(t('system.secured', 'connection secured'))
+				addSystemMsg(t('system.secured'))
 			},
 		onClientSecured: (user) => handleClientSecured(idx, user),
 		onClientList: (list, selfId, localMeta) => handleClientList(idx, list, selfId, localMeta),
@@ -243,8 +363,8 @@ export function handleClientSecured(idx, user) {
 	}
 	const isNew = !rd.knownUserIds.has(user.clientId);
 	if (isNew) {
-		rd.knownUserIds.add(user.clientId);		const name = user.userName || user.username || user.name || t('ui.anonymous', 'Anonymous');
-		const msg = `${name} ${t('system.joined', 'joined the conversation')}`;
+		rd.knownUserIds.add(user.clientId);		const name = user.userName || user.username || user.name || t('ui.anonymous');
+		const msg = `${name} ${t('system.joined')}`;
 		rd.messages.push({
 			type: 'system',
 			text: msg
@@ -270,7 +390,7 @@ export function handleClientLeft(idx, clientId) {
 	}
 	const user = rd.userMap[clientId];
 	const name = user ? (user.userName || user.username || user.name || 'Anonymous') : 'Anonymous';
-	const msg = `${name} ${t('system.left', 'left the conversation')}`;
+	const msg = `${name} ${t('system.left')}`;
 	rd.messages.push({
 		type: 'system',
 		text: msg
@@ -295,13 +415,15 @@ export function handleClientLeft(idx, clientId) {
 export function handleClientMessage(idx, msg) {
 	const newRd = roomsData[idx];
 	if (!newRd) return;
+	const msgType = msg.type || 'text';
+	const { payload, securityMeta, rejected } = unwrapIncomingPayload(newRd, msgType, msg.data);
+	if (rejected) return;
 
 	// Prevent processing own messages unless it's a private message sent to oneself
 	if (msg.clientId === newRd.myId && msg.userName === newRd.myUserName && !msg.type.includes('_private')) {
 		return;
 	}
 
-	let msgType = msg.type || 'text';
 	let realUserName = msg.userName;
 	if (!realUserName && msg.clientId && newRd.userMap[msg.clientId]) {
 		realUserName = newRd.userMap[msg.clientId].userName || newRd.userMap[msg.clientId].username || newRd.userMap[msg.clientId].name;
@@ -313,7 +435,7 @@ export function handleClientMessage(idx, msg) {
 		if (msgType === 'file_start' || msgType === 'file_start_private') {
 			const historyMsgType = msgType === 'file_start_private' ? 'file_private' : 'file';
 			
-			const fileId = msg.data && msg.data.fileId;
+			const fileId = payload && payload.fileId;
 			if (isValidFileId(fileId)) {
 				const messageAlreadyInHistory = newRd.messages.some(
 					m => m.msgType === historyMsgType && m.text && m.text.fileId === fileId && m.userName === realUserName
@@ -322,13 +444,14 @@ export function handleClientMessage(idx, msg) {
 				if (!messageAlreadyInHistory) {
 					newRd.messages.push({
 						type: 'other',
-						text: msg.data, // This is the file metadata object
+						text: payload, // This is the file metadata object
 						userName: realUserName,
 						avatar: msg.clientId && newRd.userMap[msg.clientId] && newRd.userMap[msg.clientId].fingerprint,
 						userColor: msg.clientId && newRd.userMap[msg.clientId] && newRd.userMap[msg.clientId].userColor,
 						clientId: msg.clientId || null,
 						msgType: historyMsgType,
-						timestamp: (msg.data && msg.data.timestamp) || Date.now() 
+						timestamp: (payload && payload.timestamp) || Date.now(),
+						securityMeta
 					});
 				}
 			} else if (fileId) {
@@ -336,8 +459,8 @@ export function handleClientMessage(idx, msg) {
 			}
 
 			const notificationMsgType = msgType.includes('_private') ? 'private file' : 'file';
-			if (window.notifyMessage && msg.data && msg.data.fileName) {
-				window.notifyMessage(newRd.roomName, notificationMsgType, `${msg.data.fileName}`, realUserName);
+			if (window.notifyMessage && payload && payload.fileName) {
+				window.notifyMessage(newRd.roomName, notificationMsgType, `${payload.fileName}`, realUserName);
 			}
 		}
 
@@ -347,7 +470,8 @@ export function handleClientMessage(idx, msg) {
 			// This applies to all file-related messages (file_start, file_volume, file_end, etc.)
 			if (window.handleFileMessage) {
 				window.handleFileMessage({
-					...msg.data,
+					...payload,
+					securityMeta,
 					clientId: msg.clientId || null,
 					userName: realUserName,
 					avatar: msg.clientId && newRd.userMap[msg.clientId] && newRd.userMap[msg.clientId].fingerprint,
@@ -367,19 +491,20 @@ export function handleClientMessage(idx, msg) {
 	// Add message to messages array for chat history
 	roomsData[idx].messages.push({
 		type: 'other',
-		text: msg.data,
+		text: payload,
 		userName: realUserName,
 		avatar: msg.clientId && newRd.userMap[msg.clientId] && newRd.userMap[msg.clientId].fingerprint,
 		userColor: msg.clientId && newRd.userMap[msg.clientId] && newRd.userMap[msg.clientId].userColor,
 		clientId: msg.clientId || null,
 		msgType: msgType,
-		timestamp: Date.now()
+		timestamp: Date.now(),
+		securityMeta
 	});
 
 	// Only add message to chat display if it's for the active room
 	if (activeRoomIndex === idx) {
 		if (window.addOtherMsg) {
-			window.addOtherMsg(msg.data, realUserName, msg.clientId && newRd.userMap[msg.clientId] && newRd.userMap[msg.clientId].fingerprint, false, msgType, null, msg.clientId || null, msg.clientId && newRd.userMap[msg.clientId] && newRd.userMap[msg.clientId].userColor);
+			window.addOtherMsg(payload, realUserName, msg.clientId && newRd.userMap[msg.clientId] && newRd.userMap[msg.clientId].fingerprint, false, msgType, null, msg.clientId || null, msg.clientId && newRd.userMap[msg.clientId] && newRd.userMap[msg.clientId].userColor, securityMeta);
 		}
 	} else {
 		roomsData[idx].unreadCount = (roomsData[idx].unreadCount || 0) + 1;
@@ -388,7 +513,7 @@ export function handleClientMessage(idx, msg) {
 
 	const notificationMsgType = msgType.includes('_private') ? `private ${msgType.split('_')[0]}` : msgType;
 	if (window.notifyMessage) {
-		window.notifyMessage(newRd.roomName, notificationMsgType, msg.data, realUserName);
+		window.notifyMessage(newRd.roomName, notificationMsgType, payload, realUserName);
 	}
 }
 

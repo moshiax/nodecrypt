@@ -83,11 +83,30 @@ import {	renderUserList,       // 渲染用户列表 / Render user list
 } from './ui.js';
 
 let sendMessageHandler = async () => {};
+let sendQueue = Promise.resolve();
+
+function runSend(task) {
+	const next = sendQueue.then(() => task()).catch((error) => {
+		this.logEvent('runSend', error, 'error')
+	});
+	sendQueue = next;
+	return next;
+}
+
+function createMessageSecurityStamp() {
+	const messageId = (window.crypto && typeof window.crypto.randomUUID === 'function')
+		? window.crypto.randomUUID().replace(/-/g, '').toLowerCase().slice(0, 32)
+		: Array.from(crypto.getRandomValues(new Uint8Array(16))).map((b) => b.toString(16).padStart(2, '0')).join('');
+	return {
+		messageId,
+		timestampSec: Math.floor(Date.now() / 1000)
+	};
+}
 
 async function sendPrivateMessage(rd, messageType, payload, fallbackKey) {
 	const targetClient = rd?.chat?.channel?.[rd.privateChatTargetId];
 	if (!targetClient?.shared) {
-		addSystemMsg(`${t(fallbackKey, 'Cannot send private message to')} ${rd.privateChatTargetName}. ${t('system.user_not_connected', 'User might not be fully connected.')}`);
+		addSystemMsg(`${t(fallbackKey)} ${rd.privateChatTargetName}. ${t('system.user_not_connected')}`);
 		return false;
 	}
 	const clientMessagePayload = {
@@ -223,14 +242,21 @@ window.addEventListener('DOMContentLoaded', () => {
 		const rd = roomsData[activeRoomIndex]; // 当前房间数据 / Current room data
 		
 		if (rd && rd.chat) {
-			if (rd.privateChatTargetId) {
-				const sent = await sendPrivateMessage(rd, 'text_private', text, 'system.private_message_failed');
-				if (sent) {
-					addMsg(text, false, 'text_private');
-				}
-			} else {
-				await rd.chat.sendChannelMessage('text', text);
-				addMsg(text);				}
+				await runSend(async () => {
+						if (rd.privateChatTargetId) {
+							const textStamp = createMessageSecurityStamp();
+							const securedText = `${text}\n{${textStamp.timestampSec}-${textStamp.messageId}}`;
+							const sent = await sendPrivateMessage(rd, 'text_private', securedText, 'system.private_message_failed');
+						if (sent) {
+							addMsg(text, false, 'text_private');
+						}
+						} else {
+							const textStamp = createMessageSecurityStamp();
+							const securedText = `${text}\n{${textStamp.timestampSec}-${textStamp.messageId}}`;
+							await rd.chat.sendChannelMessage('text', securedText);
+						addMsg(text);
+					}
+				});
 			
 			// 清空输入框并触发 input 事件
 			// Clear input and trigger input event
@@ -259,23 +285,25 @@ window.addEventListener('DOMContentLoaded', () => {
 		onSend: async (message) => {
 			const rd = roomsData[activeRoomIndex];
 			if (rd && rd.chat) {
-				const userName = rd.myUserName || '';
-				const msgWithUser = { ...message, userName };
-				if (rd.privateChatTargetId) {
-					const sent = await sendPrivateMessage(rd, msgWithUser.type + '_private', msgWithUser, 'system.private_file_failed');
-					if (sent && msgWithUser.type === 'file_start') {
-						addMsg(msgWithUser, false, 'file_private');
+				await runSend(async () => {
+					const userName = rd.myUserName || '';
+					const msgWithUser = { ...message, userName };
+					if (rd.privateChatTargetId) {
+						const sent = await sendPrivateMessage(rd, msgWithUser.type + '_private', msgWithUser, 'system.private_file_failed');
+						if (sent && msgWithUser.type === 'file_start') {
+							addMsg(msgWithUser, false, 'file_private');
+						}
+						} else {
+							// 公共频道文件发送
+							// Send file to public channel
+							await rd.chat.sendChannelMessage(msgWithUser.type, msgWithUser);
+						
+						// 添加到自己的聊天记录
+						if (msgWithUser.type === 'file_start') {
+							addMsg(msgWithUser, false, 'file');
+						}
 					}
-				} else {
-					// 公共频道文件发送
-					// Send file to public channel
-					await rd.chat.sendChannelMessage(msgWithUser.type, msgWithUser);
-					
-					// 添加到自己的聊天记录
-					if (msgWithUser.type === 'file_start') {
-						addMsg(msgWithUser, false, 'file');
-					}
-				}
+				});
 			}		}
 	});
 
