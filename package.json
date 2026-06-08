@@ -1,7 +1,7 @@
 {
   "name": "nodecrypt",
   "version": "1.0.0",
-  "description": "端到端加密节点",
+  "description": "端到端加密房间",
   "main": "worker/index.js",
   "scripts": {
     "build": "vite build",
