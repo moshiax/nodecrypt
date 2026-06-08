@@ -36,34 +36,6 @@ import {
 
 // Utility functions for security and error handling
 // 安全和错误处理工具函数
-
-// Simple encryption/decryption using base64 and character shifting
-// 使用base64和字符偏移的简单加密/解密
-function simpleEncrypt(text) {
-	if (!text) return '';
-	// Convert to base64 and shift characters
-	const base64 = btoa(unescape(encodeURIComponent(text)));
-	return base64.split('').map(char => {
-		const code = char.charCodeAt(0);
-		return String.fromCharCode(code + 3);
-	}).join('');
-}
-
-function simpleDecrypt(encrypted) {
-	if (!encrypted) return '';
-	try {
-		// Reverse character shifting and decode base64
-		const shifted = encrypted.split('').map(char => {
-			const code = char.charCodeAt(0);
-			return String.fromCharCode(code - 3);
-		}).join('');
-		return decodeURIComponent(escape(atob(shifted)));
-	} catch (error) {
-		console.warn('Failed to decrypt data:', error);
-		return '';
-	}
-}
-
 // Validate room data
 // 验证房间数据
 function validateRoomData(roomData) {

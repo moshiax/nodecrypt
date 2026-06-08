@@ -23,8 +23,6 @@
   },
   "homepage": "https://github.com/moshiax/NodeCrypt#readme",
   "devDependencies": {
-    "autoprefixer": "^10.4.21",
-    "cssnano": "^7.0.7",
     "terser": "^5.39.2",
     "vite": "^6.3.5",
     "vite-plugin-singlefile": "^2.3.2",

@@ -120,10 +120,6 @@ async function deriveShareKey(sharePassword, salt) {
 	);
 }
 
-export function buildRoomLink(token) {
-	return `${location.origin}${location.pathname}`;
-}
-
 export async function parseRoomToken(value, passwordProvider = null) {
 	const raw = String(value || '').trim();
 	if (!raw.startsWith(TOKEN_PREFIX)) return null;
