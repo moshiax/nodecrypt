@@ -515,7 +515,7 @@ export function loginFormHandler(modal) {
 			: (document.getElementById('server')?.getAttribute('data-token-master-key') || '');
 		const resolvedServer = resolveServerWebSocketAddress(serverInput);
 		if (!password) {
-			window.addSystemMsg && window.addSystemMsg(t('ui.node_password', 'Node Password') + ' ' + t('ui.required', 'is required'));
+			window.addSystemMsg && window.addSystemMsg(t('ui.node_password', 'Room Password') + ' ' + t('ui.required', 'is required'));
 			if (btn) {
 				btn.disabled = false;
 				btn.innerText = t('ui.enter', 'ENTER');
@@ -539,7 +539,7 @@ export function loginFormHandler(modal) {
 				warnTip.style.color = '#e74c3c';
 				warnTip.style.fontSize = '13px';
 				warnTip.style.marginTop = '4px';
-				warnTip.textContent = t('ui.node_exists', 'Node already exists');
+				warnTip.textContent = t('ui.node_exists', 'Room already exists');
 				roomInput.parentNode.appendChild(warnTip);
 				roomInput._warnTip = warnTip;
 				roomInput.focus()
@@ -587,11 +587,11 @@ export function generateLoginForm(isModal = false) {
 		</div>
 		<div class="input-group">
 			<input id="roomName${idPrefix}" type="text" required minlength="1" maxlength="128" placeholder="">
-			<label for="roomName${idPrefix}" class="floating-label">${t('ui.node_name', 'Node Name')}</label>
+			<label for="roomName${idPrefix}" class="floating-label">${t('ui.node_name', 'Room Name')}</label>
 		</div>
 		<div class="input-group">
 			<input id="password${idPrefix}" type="password" autocomplete="${isModal ? 'off' : 'current-password'}" required minlength="1" maxlength="128" placeholder="">
-			<label for="password${idPrefix}" class="floating-label">${t('ui.node_password', 'Node Password')}</label>
+			<label for="password${idPrefix}" class="floating-label">${t('ui.node_password', 'Room Password')}</label>
 		</div>
 		<button type="submit" class="login-btn">${t('ui.enter', 'ENTER')}</button>
 	`;
@@ -599,7 +599,7 @@ export function generateLoginForm(isModal = false) {
 export function openLoginModal() {
 	const modal = document.createElement('div');
 	modal.className = 'login-modal';
-	modal.innerHTML = `<div class="login-modal-bg"></div><div class="login-modal-card"><button class="login-modal-close login-modal-close-abs">&times;</button><h1>${t('ui.enter_node', 'Enter a Node')}</h1><form id="login-form-modal">${generateLoginForm(true)}</form></div>`;
+	modal.innerHTML = `<div class="login-modal-bg"></div><div class="login-modal-card"><button class="login-modal-close login-modal-close-abs">&times;</button><h1>${t('ui.enter_node', 'Enter a Room')}</h1><form id="login-form-modal">${generateLoginForm(true)}</form></div>`;
 	document.body.appendChild(modal);
 	modal.querySelector('.login-modal-close').onclick = () => modal.remove();
 	preventSpaceInput(modal.querySelector('#userName-modal'));

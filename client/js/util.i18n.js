@@ -18,15 +18,15 @@ const LANGUAGES = {
 			'meta.twitter_description': 'NodeCrypt is a zero-knowledge, end-to-end encrypted open source chat system where all encryption and decryption is done locally on the client side, and servers cannot access plaintext.',
 			
 			// Login and main UI
-			'ui.enter_node': 'Enter a Node',
+			'ui.enter_node': 'Enter a Room',
 			'ui.server': 'Server/Token',
 			'ui.username': 'Username',
-			'ui.node_name': 'Node Name',
-			'ui.node_password': 'Node Password',
+			'ui.node_name': 'Room Name',
+			'ui.node_password': 'Room Password',
 			'ui.optional': '(optional)',
 			'ui.enter': 'ENTER',
 			'ui.connecting': 'Connecting...',
-			'ui.node_exists': 'Node already exists',
+			'ui.node_exists': 'Room already exists',
 			'ui.my_name': 'My Name',
 			'ui.members': 'Members',
 			'ui.message': 'Message',
@@ -126,16 +126,16 @@ const LANGUAGES = {
 			'help.how_to_start': '🚀 Quick Start',
 			'help.step_username': 'Enter Username',
 			'help.step_username_desc': 'Choose a display name for the room, can be any name you like',
-			'help.step_node_name': 'Set Node Name',
+			'help.step_node_name': 'Set Room Name',
 			'help.step_node_name_desc': 'Unique identifier for the room, equivalent to room number',
-			'help.step_password': 'Set Node Password',
+			'help.step_password': 'Set Room Password',
 			'help.step_password_desc': 'Used to distinguish different rooms while participating in encryption process to enhance security',
 			'help.step_join': 'Click "Join Room"',
 			'help.step_join_desc': 'System will automatically generate encryption keys and start secure chatting',
 			'help.security_features': '🔑 Security Features',			'help.e2e_encryption': '🛡️ End-to-End Encryption',
 			'help.e2e_encryption_desc': 'Uses AES-256 + ECDH encryption algorithm, messages can only be decrypted by you and the recipient',
 			'help.password_enhanced_encryption': '🔐 Password Enhanced Encryption',
-			'help.password_enhanced_encryption_desc': 'Node password directly participates in encryption key generation, providing additional security protection layer',
+			'help.password_enhanced_encryption_desc': 'Room password directly participates in encryption key generation, providing additional security protection layer',
 			'help.no_history': '🚫 Zero History Records',
 			'help.no_history_desc': 'All messages exist only in current session, offline users cannot get historical messages',
 			'help.anonymous_communication': '🎭 Complete Anonymity',
@@ -143,13 +143,13 @@ const LANGUAGES = {
 			'help.decentralized': '🌐 Decentralized',
 			'help.decentralized_desc': 'Supports self-hosted deployment, server does not participate in encryption/decryption process',			'help.usage_tips': '💡 Usage Tips',
 			'help.important_note': '⚠️ Important Note',
-			'help.room_isolation_note': 'Same node name but different passwords are two completely independent rooms that cannot communicate with each other.',
+			'help.room_isolation_note': 'Same room name but different passwords are two completely independent rooms that cannot communicate with each other.',
 			'help.tip_private_chat': 'Private Chat',
-			'help.tip_private_chat_desc': 'Use complex node names and passwords, share only with specific people',
+			'help.tip_private_chat_desc': 'Use complex room names and passwords, share only with specific people',
 			'help.tip_group_chat': 'Group Chat',
-			'help.tip_group_chat_desc': 'Use simple and memorable node names and passwords for easy multi-user joining',
+			'help.tip_group_chat_desc': 'Use simple and memorable room names and passwords for easy multi-user joining',
 			'help.tip_security_reminder': 'Security Reminder',
-			'help.tip_security_reminder_desc': 'Both node name and password must be exactly the same to enter the same room',
+			'help.tip_security_reminder_desc': 'Both room name and password must be exactly the same to enter the same room',
 			'help.tip_password_strategy': 'Password Strategy',
 			'help.tip_password_strategy_desc': 'Recommend using strong passwords containing letters, numbers and symbols',
 		}
@@ -392,7 +392,7 @@ export function updateStaticTexts() {
 	// Update login title
 	const loginTitle = document.getElementById('login-title');
 	if (loginTitle) {
-		loginTitle.textContent = t('ui.enter_node', 'Enter a Node');
+		loginTitle.textContent = t('ui.enter_node', 'Enter a Room');
 	}
 		// Update login form content with new translations
 	const loginFormContainer = document.getElementById('login-form');
@@ -402,10 +402,10 @@ export function updateStaticTexts() {
 		window.dispatchEvent(new CustomEvent('regenerateLoginForm'));
 	}
 	
-	// Update "Enter a Node" text in sidebar
+	// Update "Enter a Room" text in sidebar
 	const joinRoomText = document.getElementById('join-room-text');
 	if (joinRoomText) {
-		joinRoomText.textContent = t('ui.enter_node', 'Enter a Node');
+		joinRoomText.textContent = t('ui.enter_node', 'Enter a Room');
 	}
 	
 	// Update Members title in rightbar
