@@ -152,47 +152,6 @@ export class ChatRoom {  constructor(state, env) {
       sessionPrivateKey: null
     };
 
-    // Send session key signed by master key
-    try {
-      const masterKeyPair = await this.getOrCreateMasterKeyPair();
-      const sessionKeyPair = await crypto.subtle.generateKey(
-        {
-          name: 'RSA-PSS',
-          modulusLength: 2048,
-          publicExponent: new Uint8Array([1, 0, 1]),
-          hash: 'SHA-256'
-        },
-        true,
-        ['sign', 'verify']
-      );
-      const sessionPublicKeyBuffer = await crypto.subtle.exportKey('spki', sessionKeyPair.publicKey);
-      const sessionPublicKeyB64 = this.bytesToBase64(new Uint8Array(sessionPublicKeyBuffer));
-      const signature = await crypto.subtle.sign(
-        { name: 'RSA-PSS', saltLength: 32 },
-        masterKeyPair.rsaPrivate,
-        this.base64ToBytes(sessionPublicKeyB64)
-      );
-
-      client.sessionPrivateKey = sessionKeyPair.privateKey;
-
-      this.sendMessage(connection, JSON.stringify({
-        type: 'master-key',
-        key: masterKeyPair.rsaPublic,
-        keyHex: masterKeyPair.rsaPublicHex
-      }));
-
-      logEvent('sending-public-key', clientId, 'debug');
-      this.sendMessage(connection, JSON.stringify({
-        type: 'server-key',
-        key: sessionPublicKeyB64,
-        sig: this.bytesToBase64(new Uint8Array(signature))
-      }));
-    } catch (error) {
-      logEvent('sending-public-key', error, 'error');
-      this.closeConnection(connection);
-      return;
-    }
-
     // Handle messages
     connection.addEventListener('message', async (event) => {
       const message = event.data;
@@ -327,6 +286,48 @@ export class ChatRoom {  constructor(state, env) {
       currentClient.sessionPrivateKey = null;
       delete(this.clients[clientId]);
     });
+
+    // Send session key signed by master key
+    try {
+      const masterKeyPair = await this.getOrCreateMasterKeyPair();
+      const sessionKeyPair = await crypto.subtle.generateKey(
+        {
+          name: 'RSA-PSS',
+          modulusLength: 2048,
+          publicExponent: new Uint8Array([1, 0, 1]),
+          hash: 'SHA-256'
+        },
+        true,
+        ['sign', 'verify']
+      );
+      const sessionPublicKeyBuffer = await crypto.subtle.exportKey('spki', sessionKeyPair.publicKey);
+      const sessionPublicKeyB64 = this.bytesToBase64(new Uint8Array(sessionPublicKeyBuffer));
+      const signature = await crypto.subtle.sign(
+        { name: 'RSA-PSS', saltLength: 32 },
+        masterKeyPair.rsaPrivate,
+        this.base64ToBytes(sessionPublicKeyB64)
+      );
+
+      client.sessionPrivateKey = sessionKeyPair.privateKey;
+
+      this.sendMessage(connection, JSON.stringify({
+        type: 'master-key',
+        key: masterKeyPair.rsaPublic,
+        keyHex: masterKeyPair.rsaPublicHex
+      }));
+
+      logEvent('sending-public-key', clientId, 'debug');
+      this.sendMessage(connection, JSON.stringify({
+        type: 'server-key',
+        key: sessionPublicKeyB64,
+        sig: this.bytesToBase64(new Uint8Array(signature))
+      }));
+    } catch (error) {
+      logEvent('sending-public-key', error, 'error');
+      this.closeConnection(connection);
+      return;
+    }
+
   }
   // Process encrypted messages
   processEncryptedMessage(clientId, message) {
