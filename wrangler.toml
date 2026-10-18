@@ -3,6 +3,9 @@ main = "worker/index.js"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 
+[observability]
+enabled = false
+
 # 配置静态资源
 [assets]
 directory = "./dist"

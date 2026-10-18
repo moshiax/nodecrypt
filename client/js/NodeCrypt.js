@@ -95,7 +95,7 @@ class NodeCrypt {
 
 	async deriveRoomPasswordKey(password, channelHash) {
 		const passwordBytes = this.textEncoder.encode(password || '');
-		const saltBytes = this.textEncoder.encode(`nodecrypt-room-kdf-v1:${channelHash || ''}`);
+		const saltBytes = this.textEncoder.encode(`nodecrypt-room-kdf-v2:${channelHash || ''}`);
 		const baseKey = await crypto.subtle.importKey('raw', passwordBytes, { name: 'PBKDF2' }, false, ['deriveBits']);
 		const derivedBits = await crypto.subtle.deriveBits({
 			name: 'PBKDF2', salt: saltBytes, iterations: 600000, hash: 'SHA-256'
@@ -304,7 +304,7 @@ class NodeCrypt {
 			const passwordKey = await this.deriveRoomPasswordKey(password, channelHash);
 			this.credentials = {
 				username: username,
-				channel: channelHash,
+				channel: await sha256Hex(`nodecrypt-channel-id-v2:${channelHash}:${Buffer.from(passwordKey).toString('hex')}`),
 				passwordKey: passwordKey
 			}
 		} catch (error) {
