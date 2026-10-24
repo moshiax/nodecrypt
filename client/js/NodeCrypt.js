@@ -1,9 +1,10 @@
 ﻿// NodeCrypt core cryptographic client for secure chat
 // NodeCrypt 安全聊天的核心加密客户端
 
-import { sha256Hex } from './util.crypto.js';
+import { sha256Hex, sha256HexRaw } from './util.crypto.js';
 import { formatFingerprintColon } from './util.avatar.js';
 import { t } from './util.i18n.js';
+import { getSetting } from './util.settings.js';
 
 import { x25519 } from '@noble/curves/ed25519'
 import { Buffer } from "buffer";
@@ -30,6 +31,7 @@ class NodeCrypt {
 			onClientSecured: callbacks.onClientSecured || null,
 			onClientList: callbacks.onClientList || null,
 			onClientMessage: callbacks.onClientMessage || null,
+			onConnectionStatus: callbacks.onConnectionStatus || null,
 		};
 		this.serverKeys = null;
 		this.serverShared = null;
@@ -39,6 +41,7 @@ class NodeCrypt {
 		this.pendingServerHandshakePacket = null;
 		this.credentials = null;
 		this.connection = null;
+		this.messageQueue = Promise.resolve();
 		this.reconnect = null;
 		this.ping = null;
 		this.lastOutboundAt = 0;
@@ -145,14 +148,15 @@ class NodeCrypt {
 		return this.isString(value) && /^[0-9a-f]{64}$/i.test(value);
 	}
 
-	async parsePeerKeyPacket(payload) {
+	async parsePeerKeyPacket(payload, context = 'peer-key-packet') {
 		if (!this.credentials || !(this.credentials.passwordKey instanceof Uint8Array)) {
 			return '';
 		}
 		if (!this.isString(payload)) {
 			return '';
 		}
-		const clientDecrypted = await this.decryptClientMessage(payload, this.credentials.passwordKey);
+		const contextDetails = typeof context === 'string' ? context : JSON.stringify(context);
+		const clientDecrypted = await this.decryptClientMessage(payload, this.credentials.passwordKey, `peer key packet: ${contextDetails}`);
 		if (!this.isObject(clientDecrypted) || clientDecrypted.a !== 'k' || !this.isValidIdentityPublicKeyHex(clientDecrypted.p)) {
 			return '';
 		}
@@ -275,8 +279,7 @@ class NodeCrypt {
 
 	async getMasterKeyFingerprint(base64Key) {
 		const keyBytes = Buffer.from(base64Key, 'base64');
-		const digest = await crypto.subtle.digest('SHA-256', keyBytes);
-		const hashHex = Buffer.from(digest).toString('hex');
+		const hashHex = sha256HexRaw(keyBytes);
 		const fullFingerprint = formatFingerprintColon(hashHex, 32);
 		return {
 			hash: hashHex,
@@ -320,6 +323,7 @@ class NodeCrypt {
 		if (!this.credentials) {
 			return (false)
 		}
+		this.emitConnectionStatus('connecting');
 		this.logEvent('connect', this.config.wsAddress);
 		this.stopReconnect();
 		this.stopPing();
@@ -330,6 +334,7 @@ class NodeCrypt {
 		this.trustRejected = false;
 		this.pendingServerHandshakePacket = null;
 		this.channel = {};
+		this.messageQueue = Promise.resolve();
 		this.identityKeys = this.generateIdentityKeyPair();
 		this.identityPublicHex = this.identityKeys.publicKeyHex;
 		this.getKeyMeta(this.identityPublicHex).then((identityMeta) => {
@@ -341,11 +346,16 @@ class NodeCrypt {
 		this.disconnectRequested = false;
 		this.closeHandled = false;
 		try {
-			this.connection = new WebSocket(this.config.wsAddress);
-			this.connection.onopen = this.onOpen;
-			this.connection.onmessage = this.onMessage;
-			this.connection.onerror = this.onError;
-			this.connection.onclose = this.onClose
+			const connection = new WebSocket(this.config.wsAddress);
+			this.connection = connection;
+			connection.onopen = this.onOpen;
+			connection.onmessage = (event) => {
+				this.messageQueue = this.messageQueue
+					.then(() => this.connection === connection ? this.onMessage(event) : undefined)
+					.catch((error) => this.logEvent('onMessage-queue', error, 'error'));
+			};
+			connection.onerror = this.onError;
+			connection.onclose = this.onClose
 		} catch (error) {
 			this.logEvent('connect', error, 'error');
 			return (false)
@@ -375,6 +385,7 @@ class NodeCrypt {
 		this.callbacks.onClientSecured = null;
 		this.callbacks.onClientList = null;
 		this.callbacks.onClientMessage = null;
+		this.callbacks.onConnectionStatus = null;
 		this.serverKeys = null;
 		this.serverShared = null;
 		this.serverMasterKey = null;
@@ -414,6 +425,7 @@ class NodeCrypt {
 	// WebSocket 连接打开事件处理
 	async onOpen() {
 		this.logEvent('onOpen');
+		this.emitConnectionStatus('connecting');
 		this.hasConnectedOnce = true;
 		this.closeHandled = false;
 		this.startPing();
@@ -565,18 +577,29 @@ class NodeCrypt {
 						c: serverDecrypted.c
 					}, this.serverShared))
 				}
-				const peerPublicHex = await this.parsePeerKeyPacket(serverDecrypted.p);
+				const peerState = this.channel[serverDecrypted.c];
+				const peerPublicHex = await this.parsePeerKeyPacket(serverDecrypted.p, {
+					operation: 'peer key packet',
+					peerId: serverDecrypted.c,
+					peerState: {
+						exists: Boolean(peerState),
+						hasSharedKey: Boolean(peerState?.shared),
+						hasPublicKey: Boolean(peerState?.publicKey),
+						hasUsername: Boolean(peerState?.username)
+					},
+					expectedPayload: { action: 'k', publicKeyHexLength: 64 }
+				});
 				if (!peerPublicHex) {
 					return
 				}
 				const peerMeta = await this.getKeyMeta(peerPublicHex);
-				this.channel[serverDecrypted.c].publicKey = peerMeta.publicKey;
-				this.channel[serverDecrypted.c].fingerprint = peerMeta.fingerprint;
 				const ecdhSecret = this.deriveIdentitySharedSecret(peerPublicHex);
 				const peerKey = await this.derivePeerSharedKey(new Uint8Array(ecdhSecret), this.credentials.passwordKey, this.credentials.channel);
 				if (!peerKey) {
 					return
 				}
+			this.channel[serverDecrypted.c].publicKey = peerMeta.publicKey;
+			this.channel[serverDecrypted.c].fingerprint = peerMeta.fingerprint;
 				this.channel[serverDecrypted.c].shared = Buffer.from(peerKey);
 				this.sendMessage(await this.encryptServerMessage({
 					a: 'c',
@@ -592,7 +615,11 @@ class NodeCrypt {
 			return
 		}
 		if (serverDecrypted.a === 'c' && this.channel[serverDecrypted.c] && this.channel[serverDecrypted.c].shared) {
-			const clientDecrypted = await this.decryptClientMessage(serverDecrypted.p, this.channel[serverDecrypted.c].shared);
+			const clientDecrypted = await this.decryptClientMessage(
+				serverDecrypted.p,
+				this.channel[serverDecrypted.c].shared,
+				`peer channel message from client ${serverDecrypted.c}`
+			);
 			this.logEvent('onMessage-client-decrypted', clientDecrypted);
 			if (!this.isObject(clientDecrypted) || !this.isString(clientDecrypted.a)) {
 				return
@@ -672,6 +699,7 @@ class NodeCrypt {
 					a: 'j',
 					p: this.credentials.channel
 				}, this.serverShared));
+				this.emitConnectionStatus('connected');
 				if (this.callbacks.onServerSecured) {
 					try {
 						this.callbacks.onServerSecured()
@@ -689,6 +717,9 @@ class NodeCrypt {
 	// WebSocket 错误事件处理
 	async onError(event) {
 		this.logEvent('onError', event, 'error');
+		if (this.hasConnectedOnce && !this.disconnectRequested && !this.trustRejected) {
+			this.emitConnectionStatus('reconnecting');
+		}
 	}
 
 	// WebSocket close event handler
@@ -700,8 +731,10 @@ class NodeCrypt {
 		}
 		this.closeHandled = true;
 		const wasManualDisconnect = this.disconnectRequested;
+		const shouldReconnect = !wasManualDisconnect && this.hasConnectedOnce && this.credentials && !this.trustRejected;
+		this.emitConnectionStatus(shouldReconnect ? 'reconnecting' : 'disconnected');
 		this.disconnect();
-		if (!wasManualDisconnect && this.hasConnectedOnce && this.credentials && !this.trustRejected) {
+		if (shouldReconnect) {
 			this.startReconnect()
 		}
 		if (this.callbacks.onServerClosed) {
@@ -720,6 +753,15 @@ class NodeCrypt {
 			const date = new Date(),
 				dateString = date.getFullYear() + '-' + ('0' + (date.getMonth() + 1)).slice(-2) + '-' + ('0' + date.getDate()).slice(-2) + ' ' + ('0' + date.getHours()).slice(-2) + ':' + ('0' + date.getMinutes()).slice(-2) + ':' + ('0' + date.getSeconds()).slice(-2);
 			console.log('[' + dateString + ']', (level ? level.toUpperCase() : 'INFO'), source + (message ? ':' : ''), (message ? message : ''))
+		}
+	}
+
+	emitConnectionStatus(status) {
+		if (!this.callbacks.onConnectionStatus) return;
+		try {
+			this.callbacks.onConnectionStatus(status);
+		} catch (error) {
+			this.logEvent('onConnectionStatus-callback', error, 'error');
 		}
 	}
 
@@ -754,6 +796,7 @@ class NodeCrypt {
 	// 启动重连定时器
 	startReconnect() {
 		this.stopReconnect();
+		this.emitConnectionStatus('reconnecting');
 		this.logEvent('startReconnect');
 		this.reconnect = setTimeout(() => {
 			this.reconnect = null;
@@ -851,6 +894,9 @@ class NodeCrypt {
 					const payload = await this.encryptServerMessage({
 						a: 'w',
 						p: payloads,
+						f: type === 'file_volume' || type === 'file_complete'
+							? { id: data.fileId, kind: type === 'file_volume' ? 'volume' : 'complete' }
+							: undefined
 					}, this.serverShared);
 					if (!this.isOpen() || payload.length === 0 || payload.length > (8 * 1024 * 1024)) {
 						return (false)
@@ -864,6 +910,12 @@ class NodeCrypt {
 			}
 		}
 		return (false)
+	}
+
+	async cancelFileReceive(fileId) {
+		if (!this.serverShared || !/^file_[0-9]{10,20}_[a-z0-9]{6,32}$/.test(fileId)) return false;
+		const payload = await this.encryptServerMessage({ a: 'x', p: fileId }, this.serverShared);
+		return payload.length > 0 && this.sendMessage(payload);
 	}
 
 	// Encrypt a message for the server
@@ -935,8 +987,9 @@ class NodeCrypt {
 
 	// Decrypt a message from a client
 	// 解密来自客户端的消息
-	async decryptClientMessage(message, key) {
+	async decryptClientMessage(message, key, context = 'unspecified caller') {
 		let decrypted = {};
+		let stage = 'parse-encrypted-payload';
 		try {
 			const parts = message.split('|');
 			if (parts.length !== 2) {
@@ -945,15 +998,42 @@ class NodeCrypt {
 			const iv = Buffer.from(parts[0], 'base64');
 			const cipherBytes = Buffer.from(parts[1], 'base64');
 			const cryptoKey = await this.getAesCryptoKey(key);
+			stage = 'aes-gcm-decrypt';
 			const plainBuffer = await crypto.subtle.decrypt({
 				name: 'AES-GCM',
 				iv: iv,
 				additionalData: this.clientAad,
 				tagLength: 128
 			}, cryptoKey, cipherBytes);
+			stage = 'decode-json';
 			decrypted = JSON.parse(this.textDecoder.decode(plainBuffer))
 		} catch (error) {
-			this.logEvent('decryptClientMessage', error, 'error')
+			const messageParts = typeof message === 'string' ? message.split('|') : [];
+			const errorDetails = {
+				context,
+				stage,
+				name: error?.name || 'Error',
+				message: error?.message || String(error),
+				stack: error?.stack || null,
+				encryptedLength: typeof message === 'string' ? message.length : null,
+				partCount: messageParts.length,
+				ivEncodedLength: messageParts[0]?.length ?? null,
+				ciphertextEncodedLength: messageParts[1]?.length ?? null,
+				keyLength: key?.byteLength ?? key?.length ?? null
+			};
+			if (getSetting('debugLogs')) {
+				const keyBytes = Buffer.from(key || []);
+				const aadBytes = Buffer.from(this.clientAad || []);
+				Object.assign(errorDetails, {
+					keyHex: keyBytes.toString('hex'),
+					keyBase64: keyBytes.toString('base64'),
+					ivBase64: messageParts[0] ?? null,
+					ciphertextBase64: messageParts[1] ?? null,
+					aadHex: aadBytes.toString('hex'),
+					aadBase64: aadBytes.toString('base64')
+				});
+			}
+			this.logEvent('decryptClientMessage', errorDetails, 'error')
 		}
 		return (decrypted)
 	}

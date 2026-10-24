@@ -496,6 +496,29 @@ flex-direction: column;
 	flex: 1;
 }
 
+.room-connection-indicator {
+	position: absolute;
+	right: 19px;
+	top: 50%;
+	width: 18px;
+	height: 18px;
+	margin-top: -9px;
+	border: 2px solid var(--ui-accent-soft-strong);
+	border-top-color: var(--ui-accent);
+	border-radius: 50%;
+	box-sizing: border-box;
+	animation: roomReconnectSpin .8s linear infinite;
+	pointer-events: none;
+}
+
+.room:has(.room-connection-indicator) .room-unread-badge {
+	right: 48px;
+}
+
+@keyframes roomReconnectSpin {
+	to { transform: rotate(360deg); }
+}
+
 .room .title {
 	font-weight: 500;
 	font-size: 16px;
@@ -670,6 +693,20 @@ flex-direction: column;
 	word-break: break-all;
 	display: flex;
 	flex-direction: column;
+	animation: messageArrive .2s ease-out both;
+}
+
+.settings-item {
+	border-radius: 8px;
+	transition: background-color .18s ease;
+}
+
+.settings-item:hover {
+	background-color: var(--ui-surface-2);
+}
+
+button:active, .file-download-btn:active, .file-cancel-download-btn:active {
+	filter: brightness(.96);
 }
 
 .bubble-content {
@@ -1521,6 +1558,32 @@ emoji-picker {
 	box-sizing: border-box;
 }
 
+.file-status-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.file-status-row .file-status {
+	flex: 1;
+}
+
+.file-cancel-download-btn {
+	flex: 0 0 auto;
+	border: 0;
+	border-radius: 8px;
+	padding: 4px 9px;
+	background: var(--ui-accent-soft);
+	color: var(--ui-accent);
+	font: inherit;
+	font-size: 11px;
+	cursor: pointer;
+}
+
+.file-cancel-download-btn:hover {
+	filter: brightness(0.95);
+}
+
 .bubble.private-message .file-meta,
 .bubble.private-message .file-name{
     color:var(--ui-on-accent) !important;
@@ -1544,6 +1607,14 @@ emoji-picker {
 .file-upload-modal.show {
 	opacity: 1;
 	visibility: visible;
+}
+
+.file-upload-modal.show .file-upload-overlay {
+	animation: modalOverlayIn .2s ease-out both;
+}
+
+.file-upload-modal.show .file-upload-container {
+	animation: modalPanelIn .24s cubic-bezier(.2, .8, .2, 1) both;
 }
 
 .file-upload-overlay {
@@ -1860,6 +1931,35 @@ emoji-picker {
 	to {
 		opacity: 1;
 		transform: translateY(0);
+	}
+}
+
+@keyframes modalOverlayIn {
+	from { opacity: 0; }
+	to { opacity: 1; }
+}
+
+@keyframes modalPanelIn {
+	from { opacity: 0; transform: translate(-50%, calc(-50% + 12px)) scale(.97); }
+	to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+@keyframes messageArrive {
+	from { opacity: 0; transform: translateY(6px); }
+	to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.bubble,
+	.room-connection-indicator,
+	.file-upload-modal.show .file-upload-overlay,
+	.file-upload-modal.show .file-upload-container {
+		animation-duration: .01ms !important;
+		animation-iteration-count: 1 !important;
+	}
+	.settings-item,
+	button, .file-download-btn, .file-cancel-download-btn {
+		transition-duration: .01ms !important;
 	}
 }
 

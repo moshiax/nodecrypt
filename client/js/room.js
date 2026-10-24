@@ -236,7 +236,11 @@ export function renderRooms(activeId = 0) {
 		const roomSvg = createAvatarSVG(roomSeed).replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
 		const safeServerHost = escapeHTML(rd.serverHost || '');
 		const protoClass = rd.wsProtocol === 'wss' ? 'room-proto-secure' : 'room-proto-insecure';
-		div.innerHTML = `<span class="avatar room-avatar" title="${safeRoomFingerprint}">${roomSvg}</span><div class="info"><div class="title">#${safeRoomName}</div><div class="room-server">${safeServerHost}</div><div class="room-proto ${protoClass}">${rd.wsProtocol}://</div></div>${unreadHtml}`;
+		const isReconnecting = ['connecting', 'reconnecting'].includes(rd.connectionStatus);
+		const connectionStatusHtml = isReconnecting
+			? `<span class="room-connection-indicator" role="status" aria-label="${escapeHTML(t('connection.reconnecting', 'Reconnecting'))}" title="${escapeHTML(t('connection.reconnecting', 'Reconnecting'))}"></span>`
+			: '';
+		div.innerHTML = `<span class="avatar room-avatar" title="${safeRoomFingerprint}">${roomSvg}</span><div class="info"><div class="title">#${safeRoomName}</div><div class="room-server">${safeServerHost}</div><div class="room-proto ${protoClass}">${rd.wsProtocol}://</div></div>${connectionStatusHtml}${unreadHtml}`;
 		roomList.appendChild(div)
 	})
 }
@@ -251,6 +255,7 @@ export async function joinRoom(userName, roomName, password, serverConfig, token
 	newRd.serverInput = serverConfig.serverInput;
 	newRd.serverHost = serverConfig.displayHost;
 	newRd.wsProtocol = serverConfig.wsProtocol;
+	newRd.connectionStatus = 'connecting';
 	let closed = false;
 	let activated = false;
 	let idx = -1;
@@ -262,13 +267,20 @@ export async function joinRoom(userName, roomName, password, serverConfig, token
 				closed = true;
 				onResult(false)
 			}
-		},		onServerSecured: () => {
+		},
+		onConnectionStatus: (status) => {
+			newRd.connectionStatus = status;
+			if (idx >= 0) renderRooms(activeRoomIndex);
+		},
+		onServerSecured: () => {
 			if (!activated) {
 				roomsData.push(newRd);
 				idx = roomsData.length - 1;
 				activated = true;
 				switchRoom(idx);
 			}
+			newRd.connectionStatus = 'connected';
+			renderRooms(activeRoomIndex);
 			if (modal) modal.remove();
 			else {
 				const loginContainer = $id('login-container');
@@ -282,7 +294,6 @@ export async function joinRoom(userName, roomName, password, serverConfig, token
 				closed = true;
 				onResult(true)
 			}
-				addSystemMsg(t('system.secured'))
 			},
 		onClientSecured: (user) => handleClientSecured(idx, user),
 		onClientList: (list, selfId, localMeta) => handleClientList(idx, list, selfId, localMeta),

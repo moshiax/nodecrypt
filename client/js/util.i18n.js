@@ -20,6 +20,7 @@ const LANGUAGES = {
 			// Login and main UI
 			'ui.enter_node': 'Enter a Room',
 			'ui.server': 'Server/Token',
+			'ui.server_required': 'Enter a server address',
 			'ui.username': 'Username',
 			'ui.node_name': 'Room Name',
 			'ui.node_password': 'Room Password',
@@ -52,11 +53,14 @@ const LANGUAGES = {
 			'settings.youtube_previews': 'Youtube previews',
 			'settings.photo_exif_cleanup': 'Strip photos EXIF (PNG, JPG)',
 			'settings.timestamp_window': 'Timestamp window (seconds)',
+			'settings.debug_logs': 'Debug logs',
 			
 			// File upload and transfer
 			'file.selected_files': 'Selected Files',
 			'file.clear_all': 'Clear All',
 			'file.cancel': 'Cancel',
+			'file.stop_download': 'Stop',
+			'file.download_stopped': 'Download stopped',
 			'file.send_files': 'Send Files',			'file.sending': 'Sending',
 			'file.receiving': 'Receiving',
 			'file.files': 'files',
@@ -96,6 +100,7 @@ const LANGUAGES = {
 			'system.joined': 'joined the conversation',
 			'system.left': 'left the conversation',
 			'system.secured': 'connection secured',
+			'connection.reconnecting': 'Reconnecting',
 			'system.private_message_failed': 'Cannot send private message to',
 			'system.private_file_failed': 'Cannot send private file to',
 			'system.user_not_connected': 'User might not be fully connected.',
@@ -170,6 +175,7 @@ const LANGUAGES = {
 			// Login and main UI
 			'ui.enter_node': '进入新的节点',
 			'ui.server': '服务器/令牌',
+			'ui.server_required': '请输入服务器地址',
 			'ui.username': '用户名',
 			'ui.node_name': '节点名称',
 			'ui.node_password': '节点密码',
@@ -202,11 +208,14 @@ const LANGUAGES = {
 			'settings.youtube_previews': 'YouTube 预览',
 			'settings.photo_exif_cleanup': '从照片（PNG、JPG）中移除 EXIF 信息',
 			'settings.timestamp_window': '时间戳窗口（秒）',
+			'settings.debug_logs': '调试日志',
 			
 			// File upload and transfer
 			'file.selected_files': '已选择的文件',
 			'file.clear_all': '清空所有',
 			'file.cancel': '取消',
+			'file.stop_download': '停止下载',
+			'file.download_stopped': '已停止下载',
 			'file.send_files': '发送文件',		
 			'file.sending': '发送中',
 			'file.receiving': '接收中',
@@ -247,6 +256,7 @@ const LANGUAGES = {
 			'system.joined': '加入了对话',
 			'system.left': '离开了对话',
 			'system.secured': '已建立端到端安全连接',
+			'connection.reconnecting': '正在重新连接',
 			'system.private_message_failed': '无法发送私信给',
 			'system.private_file_failed': '无法发送私密文件给',
 			'system.user_not_connected': '用户可能未完全连接。',

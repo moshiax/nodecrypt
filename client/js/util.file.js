@@ -1,10 +1,13 @@
 // Import necessary modules
 // 导入必要的模块
-import { deflate, inflate } from 'fflate';
+import { deflate, Inflate } from 'fflate';
+import { sha256 } from '@noble/hashes/sha2';
+import { sha256HexRaw } from './util.crypto.js';
 import { parseBlob } from 'music-metadata';
 import { showFileUploadModal, addFilesToUploadModal } from './util.fileUpload.js';
 import { escapeHTML } from './util.string.js';
 import { getSetting } from './util.settings.js';
+import { t } from './util.i18n.js';
 
 export function getFileDisplayInfo({
 	fileName = '',
@@ -30,7 +33,10 @@ export function getFileDisplayInfo({
 }
 
 // 分卷大小统一配置
-const DEFAULT_VOLUME_SIZE = 256 * 1024; // 512KB
+const DEFAULT_VOLUME_SIZE = 256 * 1024;
+const LARGE_FILE_THRESHOLD = 16 * 1024 * 1024;
+const LARGE_FILE_CHUNK_SIZE = 256 * 1024;
+const MAX_FILE_VOLUME_BYTES = LARGE_FILE_CHUNK_SIZE + 1024;
 const FILE_ID_PATTERN = /^file_[0-9]{10,20}_[a-z0-9]{6,32}$/;
 
 // File transfer state management
@@ -86,19 +92,12 @@ function escapeSelectorValue(value) {
 	return String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
 
-// Calculate SHA-256 hash for data integrity verification
-// 计算SHA-256哈希值用于数据完整性验证
-async function calculateHash(data) {
-	const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-	const hashArray = Array.from(new Uint8Array(hashBuffer));
-	return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-
-
 // Compress file into volumes with optimized compression
 // 将文件压缩为分卷，优化压缩算法
-async function compressFileToVolumes(file, volumeSize = DEFAULT_VOLUME_SIZE) { // 96KB原始数据，base64后约128KB
+async function compressFileToVolumes(file, volumeSize = DEFAULT_VOLUME_SIZE, onProgress = () => {}) {
+	if (file.size > LARGE_FILE_THRESHOLD) {
+		return prepareLargeFile(file, onProgress);
+	}
 	return new Promise((resolve, reject) => {
 		const reader = new FileReader();
 		reader.onload = async function(e) {
@@ -106,7 +105,7 @@ async function compressFileToVolumes(file, volumeSize = DEFAULT_VOLUME_SIZE) { /
 			
 			try {
 				// Calculate hash of original file for integrity
-				const originalHash = await calculateHash(arrayBuffer);
+				const originalHash = sha256HexRaw(arrayBuffer);
 				
 				// Use single compression pass with balanced compression
 				// 使用单次压缩，平衡压缩率和速度
@@ -128,6 +127,8 @@ async function compressFileToVolumes(file, volumeSize = DEFAULT_VOLUME_SIZE) { /
 					
 					resolve({
 						volumes,
+						totalVolumes: volumes.length,
+						compression: 'deflate',
 						originalSize: file.size,
 						compressedSize: compressed.length,
 						originalHash
@@ -142,63 +143,83 @@ async function compressFileToVolumes(file, volumeSize = DEFAULT_VOLUME_SIZE) { /
 	});
 }
 
+async function prepareLargeFile(file, onProgress = () => {}) {
+	const hash = sha256.create();
+	const totalVolumes = Math.ceil(file.size / LARGE_FILE_CHUNK_SIZE);
+	for (let offset = 0; offset < file.size; offset += LARGE_FILE_CHUNK_SIZE) {
+		const chunk = new Uint8Array(await file.slice(offset, offset + LARGE_FILE_CHUNK_SIZE).arrayBuffer());
+		hash.update(chunk);
+		onProgress(Math.min(offset + chunk.length, file.size), file.size);
+	}
+	const originalHash = sha256HexRaw(hash.digest());
+	return {
+		volumes: null,
+		file,
+		compression: 'chunked-raw',
+		totalVolumes,
+		originalSize: file.size,
+		compressedSize: file.size,
+		originalHash
+	};
+}
+
+function inflateWithLimit(compressed, expectedSize) {
+	const chunks = [];
+	let outputSize = 0;
+	const inflater = new Inflate((chunk) => {
+		outputSize += chunk.length;
+		if (outputSize > expectedSize) throw new Error('Decompressed file exceeds declared size');
+		chunks.push(chunk);
+	});
+	inflater.push(compressed, true);
+	if (outputSize !== expectedSize) throw new Error('Decompressed file size does not match metadata');
+	const output = new Uint8Array(outputSize);
+	let offset = 0;
+	for (const chunk of chunks) {
+		output.set(chunk, offset);
+		offset += chunk.length;
+	}
+	return output;
+}
+
 // Decompress volumes back to file
 // 将分卷解压回文件
-async function decompressVolumesToFile(volumes, fileName, originalHash = null, fileType = '') {
-	try {
-		// Combine all volumes using base64 decoding
-		const combinedData = volumes.map(volume => {
-			return base64ToArrayBuffer(volume);
-		});
-		
-		const totalLength = combinedData.reduce((sum, arr) => sum + arr.length, 0);
-		const compressed = new Uint8Array(totalLength);
-		let offset = 0;
-		
-		for (const data of combinedData) {
-			compressed.set(data, offset);
-			offset += data.length;
+async function createFileBlob(transfer) {
+	if (transfer.blob) return transfer.blob;
+	const { volumeData, totalVolumes, compression, originalSize, compressedSize, originalHash, fileType } = transfer;
+	if (!(volumeData instanceof Map) || volumeData.size !== totalVolumes) throw new Error('File is missing one or more volumes');
+	let blob;
+	if (compression === 'chunked-deflate' || compression === 'chunked-raw') {
+		const hash = sha256.create();
+		const chunks = [];
+		for (let index = 0; index < totalVolumes; index++) {
+			const compressedChunk = volumeData.get(index);
+			if (!(compressedChunk instanceof Uint8Array)) throw new Error('File is missing a volume');
+			const expectedChunkSize = Math.min(LARGE_FILE_CHUNK_SIZE, originalSize - (index * LARGE_FILE_CHUNK_SIZE));
+			const chunk = compression === 'chunked-raw' ? compressedChunk : inflateWithLimit(compressedChunk, expectedChunkSize);
+			if (chunk.length !== expectedChunkSize) throw new Error('File chunk size does not match metadata');
+			hash.update(chunk);
+			chunks.push(chunk);
 		}
-				// Decompress
-		return new Promise((resolve, reject) => {
-			inflate(compressed, async (err, decompressed) => {
-				if (err) {
-					reject(err);
-					return;
-				}
-				
-				// Verify hash if provided
-				if (originalHash) {
-					try {
-						const calculatedHash = await calculateHash(decompressed);
-						if (calculatedHash !== originalHash) {
-							reject(new Error('File integrity check failed: hash mismatch'));
-							return;
-						}
-					} catch (hashError) {
-						reject(new Error('File integrity check failed: ' + hashError.message));
-						return;
-					}
-				}
-				
-				// Create blob and download
-				const blob = new Blob([decompressed]);
-				const url = URL.createObjectURL(blob);
-				const a = document.createElement('a');
-				a.href = url;
-				a.download = fileName;
-				document.body.appendChild(a);
-				a.click();
-				document.body.removeChild(a);
-				URL.revokeObjectURL(url);
-				
-				resolve();
-			});
-		});
-	} catch (error) {
-		console.error('Decompression error:', error);
-		throw error;
+		if (sha256HexRaw(hash.digest()) !== originalHash) throw new Error('File integrity check failed: hash mismatch');
+		blob = new Blob(chunks, { type: fileType });
+	} else {
+		const compressed = new Uint8Array(compressedSize);
+		let offset = 0;
+		for (let index = 0; index < totalVolumes; index++) {
+			const chunk = volumeData.get(index);
+			if (!(chunk instanceof Uint8Array)) throw new Error('File is missing a volume');
+			compressed.set(chunk, offset);
+			offset += chunk.length;
+		}
+		if (offset !== compressedSize) throw new Error('Compressed file size does not match metadata');
+		const decompressed = inflateWithLimit(compressed, originalSize);
+		if (sha256HexRaw(decompressed) !== originalHash) throw new Error('File integrity check failed: hash mismatch');
+		blob = new Blob([decompressed], { type: fileType });
 	}
+	transfer.blob = blob;
+	transfer.volumeData.clear();
+	return blob;
 }
 
 // Setup file sending functionality
@@ -219,7 +240,7 @@ export function setupFileSend({
 				? (window.roomsData[window.activeRoomIndex]?.myUserName || '')
 				: '';
 			await handleFilesUpload(modalFiles, (msg) => {
-				onSend({ ...msg, userName });
+				return onSend({ ...msg, userName });
 			});
 		};
 		if (normalizedFiles.length > 0) {
@@ -292,74 +313,98 @@ function inferExtension(file) {
 // 处理文件上传
 async function handleFilesUpload(files, onSend) {
 	if (!files || files.length === 0) return;
+	let preparationStatus = null;
+	let activeTransfer = null;
 	try {
-		// Show compression progress
-		let progressElement = null;
-		
-		function showProgress(message) {
-			// 删除系统提示
-		}
-		
-		function updateProgress(message) {
-			// 删除系统提示
-		}
-		
 		for (const sourceFile of files) {
 			const shouldStripImageExif = getSetting('stripImageExif');
 			const file = shouldStripImageExif ? await recreateImageWithoutExif(sourceFile) : sourceFile;
-			const fileId = generateFileId();
-			showProgress();
-			const previewData = await createFilePreviewData(file);
 			const { coverData, audioTitle, audioArtist } = await extractAudioMetadata(file);
-			const { volumes, originalSize, compressedSize, originalHash } = await compressFileToVolumes(file);
-
-			updateProgress();
+			const setPreparationStatus = (text) => {
+				if (!preparationStatus) {
+					const chatArea = document.querySelector('#chat-area');
+					if (chatArea) {
+						preparationStatus = document.createElement('div');
+						preparationStatus.className = 'bubble system file-preparation-status';
+						preparationStatus.setAttribute('role', 'status');
+						preparationStatus.innerHTML = '<span class="bubble-content"></span>';
+						chatArea.appendChild(preparationStatus);
+					}
+				}
+				const content = preparationStatus?.querySelector('.bubble-content');
+				if (content) content.textContent = text;
+			};
+			const prepared = await compressFileToVolumes(file, DEFAULT_VOLUME_SIZE, (processed, total) => {
+					setPreparationStatus(`Preparing ${file.name}: ${Math.floor((processed / total) * 100)}%`);
+				});
+			preparationStatus?.remove();
+			preparationStatus = null;
+			const fileId = generateFileId();
+			const { volumes, totalVolumes, originalSize, compressedSize, originalHash } = prepared;
 
 			// Create file transfer state
 			const fileTransfer = {
 				fileId,
 				fileName: file.name,
 				fileType: file.type,
-				previewData,
+				previewData: null,
+				previewUrl: file.type.startsWith('image/') || file.type.startsWith('audio/') || file.type.startsWith('video/')
+					? URL.createObjectURL(file)
+					: null,
 				coverData,
 				audioTitle,
 				audioArtist,
 				originalSize,
 				compressedSize,
-				totalVolumes: volumes.length,
+				totalVolumes,
 				sentVolumes: 0,
 				status: 'sending',
 				originalHash,
-				volumeData: volumes
+				volumeData: volumes,
+				sourceFile: file,
+				blob: file,
+				compression: prepared.compression || 'deflate'
 			};
 
 			window.fileTransfers.set(fileId, fileTransfer);
+			activeTransfer = fileTransfer;
 
 			// Send file start message
-			onSend({
+			const started = await onSend({
 				type: 'file_start',
 				fileId,
 				fileName: file.name,
 				fileType: file.type,
-				previewData,
+				previewData: null,
 				coverData,
 				audioTitle,
 				audioArtist,
 				originalSize,
 				compressedSize,
-				totalVolumes: volumes.length,
-				originalHash
+				totalVolumes,
+				originalHash,
+				compression: prepared.compression || 'deflate'
 			});
+			if (started === false) throw new Error(`Failed to send file metadata for ${file.name}`);
 
 			// Send this file completely before moving to next one
-			await sendVolumes(fileId, volumes, onSend, updateProgress, file.name);
+			await sendVolumes(fileId, onSend, file.name);
+			activeTransfer = null;
 		}
 		
 	} catch (error) {
-		console.error('File compression error:', error);
-		if (window.addSystemMsg) {
-			window.addSystemMsg(`Failed to compress files: ${error.message}`);
+		if (activeTransfer?.status === 'sending') {
+			activeTransfer.status = 'failed';
+			activeTransfer.failureReason = error.message;
+			activeTransfer.sendContext = null;
+			updateFileProgress(activeTransfer.fileId);
 		}
+		console.error('File transfer error:', error);
+		if (window.addSystemMsg) {
+			window.addSystemMsg(`Failed to send file: ${error.message}`);
+		}
+	} finally {
+		preparationStatus?.remove();
 	}
 }
 
@@ -419,80 +464,45 @@ async function recreateImageWithoutExif(file) {
 	}
 }
 
-async function createFilePreviewData(file) {
-	if (!file) return null;
-
-	const inferredType = file.type || '';
-
-	if (
-		!inferredType.startsWith('image/') &&
-		!inferredType.startsWith('audio/') &&
-		!inferredType.startsWith('video/')
-	) return null;
-
-	return await new Promise((resolve) => {
-		const reader = new FileReader();
-		reader.onload = (event) => resolve(event.target.result);
-		reader.onerror = () => resolve(null);
-		reader.readAsDataURL(file);
-	});
-}
-
 // Send volumes with progress tracking
 // 发送分卷并跟踪进度
-async function sendVolumes(fileId, volumes, onSend, updateProgress, fileName) {
+async function sendVolumes(fileId, onSend, fileName) {
 	const fileTransfer = window.fileTransfers.get(fileId);
 	if (!fileTransfer) return;
 
-	await new Promise((resolve) => {
-		let currentVolume = 0;
-		const batchSize = 5; // 每批发送5个分卷
-
-		function sendNextBatch() {
-			if (currentVolume >= volumes.length) {
-				// 发送完成消息
-				onSend({
-					type: 'file_complete',
-					fileId
-				});
-
-				fileTransfer.status = 'completed';
-				updateFileProgress(fileId);
-				updateProgress(`✓ Sent ${fileName} successfully`);
-				resolve();
-				return;
+	const batchSize = 5;
+	for (let start = 0; start < fileTransfer.totalVolumes; start += batchSize) {
+		const end = Math.min(start + batchSize, fileTransfer.totalVolumes);
+		const messages = [];
+		for (let index = start; index < end; index++) {
+			let volumeData = fileTransfer.volumeData?.[index];
+			if (fileTransfer.compression === 'chunked-raw') {
+				const offset = index * LARGE_FILE_CHUNK_SIZE;
+				const chunk = new Uint8Array(await fileTransfer.sourceFile.slice(offset, offset + LARGE_FILE_CHUNK_SIZE).arrayBuffer());
+				volumeData = arrayBufferToBase64(chunk);
 			}
-
-			// 发送当前批次
-			const batchEnd = Math.min(currentVolume + batchSize, volumes.length);
-			const batch = [];
-
-			for (let i = currentVolume; i < batchEnd; i++) {
-				batch.push({
-					type: 'file_volume',
-					fileId,
-					volumeIndex: i,
-					volumeData: volumes[i],
-					isLast: i === volumes.length - 1
-				});
-			}
-
-			// 发送批次中的所有分卷
-			batch.forEach(volumeMsg => onSend(volumeMsg));
-
-			// 更新发送进度
-			fileTransfer.sentVolumes = batchEnd;
-			updateFileProgress(fileId);
-
-			currentVolume = batchEnd;
-
-			// 继续发送下一批，使用较短的延迟
-			setTimeout(sendNextBatch, 100);
+			messages.push({
+				type: 'file_volume',
+				fileId,
+				volumeIndex: index,
+				volumeData,
+				isLast: index === fileTransfer.totalVolumes - 1
+			});
 		}
 
-		// 开始发送
-		sendNextBatch();
-	});
+		const sent = await Promise.all(messages.map((message) => onSend(message)));
+		if (sent.some((result) => result === false)) throw new Error(`Failed to send file chunk ${start + 1}`);
+		fileTransfer.sentVolumes = end;
+		updateFileProgress(fileId);
+		if (end < fileTransfer.totalVolumes) await new Promise((resolve) => setTimeout(resolve, 100));
+	}
+
+	const completed = await onSend({ type: 'file_complete', fileId });
+	if (completed === false) throw new Error(`Failed to complete file transfer for ${fileName}`);
+	fileTransfer.status = 'completed';
+	fileTransfer.volumeData = null;
+	updateFileProgress(fileId);
+	window.updateFileMessagePreview?.(fileId);
 }
 
 // Update file progress in chat
@@ -506,24 +516,27 @@ function updateFileProgress(fileId) {
 		const progressContainer = element.querySelector('.file-progress-container');
 		const progressBar = element.querySelector('.file-progress');
 		const statusText = element.querySelector('.file-status');
+		const cancelDownloadBtn = element.querySelector('.file-cancel-download-btn');
 		const downloadBtn = element.querySelector('.file-download-btn');
 		
 		// 判断是否为发送方（发送方没有volumeData）
-		const isSender = !transfer.volumeData || transfer.volumeData.length === 0;
+		const isSender = Boolean(transfer.sourceFile);
 		
 		if (transfer.status === 'sending') {
+			if (cancelDownloadBtn) cancelDownloadBtn.style.display = 'none';
 			const progress = (transfer.sentVolumes / transfer.totalVolumes) * 100;
 			if (progressContainer) {
 				progressContainer.style.display = 'block';
 				progressContainer.classList.remove('fade-out');
 			}
 			if (progressBar) progressBar.style.width = `${progress}%`;
-			if (statusText) statusText.textContent = `Sending ${transfer.sentVolumes}/${transfer.totalVolumes}`;
+			if (statusText) statusText.textContent = `Uploading ${Math.floor(progress)}% (${transfer.sentVolumes}/${transfer.totalVolumes})`;
 			if (downloadBtn) {
 				downloadBtn.classList.remove('show', 'animate-in');
 				downloadBtn.style.display = 'none';
 			}
 		} else if (transfer.status === 'receiving') {
+			if (cancelDownloadBtn) cancelDownloadBtn.style.display = 'inline-flex';
 			const progress = (transfer.receivedVolumes.size / transfer.totalVolumes) * 100;
 			if (progressContainer) {
 				progressContainer.style.display = 'block';
@@ -536,6 +549,7 @@ function updateFileProgress(fileId) {
 				downloadBtn.style.display = 'none';
 			}
 		} else if (transfer.status === 'completed') {
+			if (cancelDownloadBtn) cancelDownloadBtn.style.display = 'none';
 			// 传输完成时的动画序列
 			if (progressContainer) {
 				// 先添加淡出动画类
@@ -568,6 +582,23 @@ function updateFileProgress(fileId) {
 					}, 200);
 				}
 			}
+		} else if (transfer.status === 'cancelled') {
+			if (progressContainer) {
+				progressContainer.style.display = 'block';
+				progressContainer.classList.remove('fade-out');
+			}
+			if (progressBar) progressBar.style.width = '0%';
+			if (statusText) statusText.textContent = t('file.download_stopped', 'Download stopped');
+			if (cancelDownloadBtn) cancelDownloadBtn.style.display = 'none';
+			if (downloadBtn) {
+				downloadBtn.classList.remove('show', 'animate-in');
+				downloadBtn.style.display = 'none';
+			}
+		} else if (transfer.status === 'failed') {
+			if (progressContainer) progressContainer.style.display = 'block';
+			if (statusText) statusText.textContent = transfer.failureReason || 'File verification failed';
+			if (cancelDownloadBtn) cancelDownloadBtn.style.display = 'none';
+			if (downloadBtn) downloadBtn.style.display = 'none';
 		}
 	});
 }
@@ -673,7 +704,7 @@ export function handleFileMessage(message, isPrivate = false) {
 			handleFileVolume(message);
 			break;
 		case 'file_complete':
-			handleFileComplete(message);
+			void handleFileComplete(message);
 			break;
 	}
 }
@@ -682,20 +713,45 @@ export function handleFileMessage(message, isPrivate = false) {
 // 处理文件开始消息
 function handleFileStart(message, isPrivate) {
 	const { fileId, fileName, fileType = '', previewData = null, coverData = null, audioTitle = null, audioArtist = null, originalSize, compressedSize, totalVolumes, originalHash, userName, clientId = null, avatar = '', userColor = null, securityMeta = null } = message;
+	const compression = message.compression || 'deflate';
+	const validInteger = (value) => Number.isSafeInteger(value) && value >= 0;
+	const expectedVolumes = compression === 'chunked-raw' || compression === 'chunked-deflate'
+		? Math.ceil(originalSize / LARGE_FILE_CHUNK_SIZE)
+		: Math.ceil(compressedSize / DEFAULT_VOLUME_SIZE);
+	if (
+		!isValidFileId(fileId) || window.fileTransfers.has(fileId) ||
+		typeof fileName !== 'string' || fileName.length === 0 || fileName.length > 1024 ||
+		typeof fileType !== 'string' || fileType.length > 256 ||
+		!validInteger(originalSize) || !validInteger(compressedSize) || compressedSize === 0 ||
+		!Number.isSafeInteger(totalVolumes) || totalVolumes < 1 ||
+		totalVolumes !== expectedVolumes ||
+		!['deflate', 'chunked-deflate', 'chunked-raw'].includes(compression) ||
+		typeof originalHash !== 'string' || !/^[a-f0-9]{64}$/i.test(originalHash) ||
+		(previewData !== null && typeof previewData !== 'string') ||
+		(coverData !== null && typeof coverData !== 'string') ||
+		(audioTitle !== null && (typeof audioTitle !== 'string' || audioTitle.length > 1024)) ||
+		(audioArtist !== null && (typeof audioArtist !== 'string' || audioArtist.length > 1024))
+	) {
+		console.warn('Rejected invalid file_start metadata:', fileId);
+		return;
+	}
 	
 	const fileTransfer = {
 		fileId,
 		fileName,
 		fileType,
 		previewData,
+		previewUrl: null,
 		coverData,
 		audioTitle,
 		audioArtist,
 		originalSize,
 		compressedSize,
 		totalVolumes,
+		compression,
 		receivedVolumes: new Set(),
-		volumeData: new Array(totalVolumes),
+		receivedCompressedSize: 0,
+		volumeData: new Map(),
 		status: 'receiving',
 		originalHash,
 		userName // 记录发送者名字
@@ -729,27 +785,66 @@ function handleFileVolume(message) {
 	const { fileId, volumeIndex, volumeData } = message;
 	const transfer = window.fileTransfers.get(fileId);
 	
-	if (!transfer) return;
-	
+	if (!transfer || transfer.status !== 'receiving') return;
+	if (!Number.isSafeInteger(volumeIndex) || volumeIndex < 0 || volumeIndex >= transfer.totalVolumes || transfer.receivedVolumes.has(volumeIndex)) return;
+	if (typeof volumeData !== 'string' || volumeData.length === 0 || volumeData.length > Math.ceil(MAX_FILE_VOLUME_BYTES * 4 / 3) + 4 || !/^[A-Za-z0-9+/]*={0,2}$/.test(volumeData)) return;
+	let decodedVolume;
+	try {
+		decodedVolume = base64ToArrayBuffer(volumeData);
+	} catch {
+		return;
+	}
+	if (decodedVolume.length === 0 || decodedVolume.length > MAX_FILE_VOLUME_BYTES) return;
+	if (transfer.compression === 'deflate') {
+		const expectedSize = Math.min(DEFAULT_VOLUME_SIZE, transfer.compressedSize - (volumeIndex * DEFAULT_VOLUME_SIZE));
+		if (decodedVolume.length !== expectedSize) return;
+	} else if (transfer.compression === 'chunked-raw') {
+		const expectedSize = Math.min(LARGE_FILE_CHUNK_SIZE, transfer.originalSize - (volumeIndex * LARGE_FILE_CHUNK_SIZE));
+		if (decodedVolume.length !== expectedSize) return;
+	}
+	if (transfer.receivedCompressedSize + decodedVolume.length > transfer.compressedSize) return;
 	transfer.receivedVolumes.add(volumeIndex);
-	transfer.volumeData[volumeIndex] = volumeData;
+	transfer.receivedCompressedSize += decodedVolume.length;
+	transfer.volumeData.set(volumeIndex, decodedVolume);
 	
 	updateFileProgress(fileId);
 }
 
 // Handle file complete message
 // 处理文件完成消息
-function handleFileComplete(message) {
+async function handleFileComplete(message) {
 	const { fileId } = message;
 	const transfer = window.fileTransfers.get(fileId);
 	
-	if (!transfer) return;
+	if (!transfer || transfer.status === 'cancelled') return;
 	
 	// 检查是否所有分卷都已接收
-	if (transfer.receivedVolumes.size === transfer.totalVolumes) {
-		transfer.status = 'completed';
+	if (transfer.receivedVolumes.size === transfer.totalVolumes && transfer.receivedCompressedSize === transfer.compressedSize) {
+		try {
+			if (/^(image|audio|video)\//.test(transfer.fileType)) {
+				const blob = await createFileBlob(transfer);
+				transfer.previewUrl = URL.createObjectURL(blob);
+			}
+			transfer.status = 'completed';
+			window.updateFileMessagePreview?.(fileId);
+		} catch (error) {
+			console.error('File verification error:', error);
+			transfer.status = 'failed';
+			transfer.failureReason = `File verification failed: ${error.message}`;
+			window.addSystemMsg?.(`File verification failed: ${error.message}`);
+		}
 		updateFileProgress(fileId);
 	}
+}
+
+export function cancelFileDownload(fileId) {
+	const transfer = window.fileTransfers.get(fileId);
+	if (!transfer || transfer.status !== 'receiving') return false;
+	transfer.status = 'cancelled';
+	transfer.volumeData.clear();
+	transfer.receivedVolumes.clear();
+	updateFileProgress(fileId);
+	return true;
 }
 
 // Download file from volumes
@@ -759,8 +854,15 @@ export async function downloadFile(fileId) {
 	if (!transfer || transfer.status !== 'completed') return;
 	
 	try {
-		await decompressVolumesToFile(transfer.volumeData, transfer.fileName, transfer.originalHash, transfer.fileType);
-		// 删除系统提示
+		const blob = await createFileBlob(transfer);
+		const url = URL.createObjectURL(blob);
+		const link = document.createElement('a');
+		link.href = url;
+		link.download = transfer.fileName;
+		document.body.appendChild(link);
+		link.click();
+		link.remove();
+		setTimeout(() => URL.revokeObjectURL(url), 60_000);
 	} catch (error) {
 		console.error('Download error:', error);
 		window.addSystemMsg(`Failed to download: ${error.message}`);

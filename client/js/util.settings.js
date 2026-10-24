@@ -26,6 +26,7 @@ const SETTINGS_SCHEMA = {
 	youtubePreviews: { default: true },
 	stripImageExif: { default: false },
 	timestampWindowSec: { default: 10 },
+	debugLogs: { default: false },
 	language: { default: undefined }
 };
 
@@ -77,7 +78,8 @@ const SETTINGS_PANEL_SECTIONS = [
 		items: [
 			{ key: 'youtubePreviews', type: 'toggle', labelKey: 'settings.youtube_previews' },
 			{ key: 'stripImageExif', type: 'toggle', labelKey: 'settings.photo_exif_cleanup' },
-			{ key: 'timestampWindowSec', type: 'number', min: 1, max: 3600, step: 1, labelKey: 'settings.timestamp_window' }
+			{ key: 'timestampWindowSec', type: 'number', min: 1, max: 3600, step: 1, labelKey: 'settings.timestamp_window' },
+			{ key: 'debugLogs', type: 'toggle', labelKey: 'settings.debug_logs' }
 		]
 	}
 ];

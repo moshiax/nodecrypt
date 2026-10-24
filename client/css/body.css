@@ -276,6 +276,7 @@ body {
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	animation: modalFadeIn .2s ease-out both;
 }
 
 .login-modal-bg {
@@ -286,6 +287,7 @@ body {
 	bottom: 0;
 	background: rgba(255, 255, 255, 0.5);
 	z-index: 1;
+	backdrop-filter: blur(3px);
 }
 
 .login-modal-card {
@@ -298,6 +300,8 @@ body {
 	min-width: 200px;
 	width: 400px;
 	text-align: center;
+	transform-origin: center;
+	animation: modalCardIn .24s cubic-bezier(.2, .8, .2, 1) both;
 }
 
 .login-modal-card form {
@@ -365,6 +369,7 @@ body {
 	align-items: center;
 	justify-content: center;
 	background: rgba(20, 20, 20, 0.92);
+	animation: modalFadeIn .2s ease-out both;
 }
 
 .img-modal-blur {
@@ -386,6 +391,7 @@ body {
 	height: 100vh;
 	max-width: 100vw;
 	max-height: 100vh;
+	animation: modalCardIn .24s cubic-bezier(.2, .8, .2, 1) both;
 }
 
 .img-modal-content img {
@@ -594,6 +600,7 @@ body[data-ui-theme="amoled"] {
 	justify-content: center;
 	padding: 20px;
 	z-index: 12000;
+	animation: modalFadeIn .2s ease-out both;
 }
 
 .security-modal-card {
@@ -603,7 +610,7 @@ body[data-ui-theme="amoled"] {
 	border-radius: 18px;
 	box-shadow: var(--security-modal-card-shadow);
 	color: var(--security-modal-card-color);
-	animation: securityModalIn .18s ease-out;
+	animation: modalCardIn .24s cubic-bezier(.2, .8, .2, 1) both;
 }
 
 :root[data-ui-theme="light"] body,
@@ -707,6 +714,28 @@ body[data-ui-theme="light"] {
 	}
 	to {
 		opacity: 1;
+	}
+}
+
+@keyframes modalFadeIn {
+	from { opacity: 0; }
+	to { opacity: 1; }
+}
+
+@keyframes modalCardIn {
+	from { opacity: 0; transform: translateY(12px) scale(.97); }
+	to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.login-modal,
+	.login-modal-card,
+	.img-modal-bg,
+	.img-modal-content,
+	.security-modal-bg,
+	.security-modal-card {
+		animation-duration: .01ms !important;
+		animation-iteration-count: 1 !important;
 	}
 }
 

@@ -1,4 +1,5 @@
 // Crypto utilities with LRU memoization helpers
+import { sha256 } from '@noble/hashes/sha2';
 
 function arrayBufferToBase64(buffer) {
 	const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
@@ -23,6 +24,10 @@ function getSize(value) {
 		return new TextEncoder().encode(JSON.stringify(value)).length;
 	}
 	return 0;
+}
+
+function bytesToHex(bytes) {
+	return [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 function cacheAsync(fn, limit = 3000, name = '') {
@@ -71,10 +76,9 @@ function cacheAsync(fn, limit = 3000, name = '') {
 	};
 }
 
-async function sha256HexRaw(input) {
+function sha256HexRaw(input) {
 	const normalized = input instanceof Uint8Array || input instanceof ArrayBuffer ? input : new TextEncoder().encode(String(input));
-	const digest = await crypto.subtle.digest('SHA-256', normalized);
-	return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+	return bytesToHex(sha256(normalized));
 }
 
 const sha256Hex = cacheAsync(sha256HexRaw, 1000, 'sha256HexRaw');
@@ -83,5 +87,6 @@ export {
 	serializeArg,
 	getSize,
 	cacheAsync,
-	sha256Hex
+	sha256Hex,
+	sha256HexRaw
 };

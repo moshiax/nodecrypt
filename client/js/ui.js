@@ -481,12 +481,13 @@ export function preventSpaceInput(input) {
 export function loginFormHandler(modal) {
 	return async function(e) {
 		e.preventDefault();
-		let userName, roomName, password, serverInput, btn, roomInput, warnTip;
+		let userName, roomName, password, serverInput, btn, roomInput, warnTip, serverField;
 		if (modal) {
 			userName = document.getElementById('userName-modal').value.trim();
 			roomName = document.getElementById('roomName-modal').value.trim();
 			password = document.getElementById('password-modal').value.trim();
 			serverInput = document.getElementById('server-modal').value.trim();
+			serverField = document.getElementById('server-modal');
 			btn = modal.querySelector('.login-btn');
 			roomInput = document.getElementById('roomName-modal')
 		} else {
@@ -494,6 +495,7 @@ export function loginFormHandler(modal) {
 			roomName = document.getElementById('roomName').value.trim();
 			password = document.getElementById('password').value.trim();
 			serverInput = document.getElementById('server').value.trim();
+			serverField = document.getElementById('server');
 			btn = document.querySelector('#login-form .login-btn');
 			roomInput = document.getElementById('roomName')
 		}
@@ -509,6 +511,20 @@ export function loginFormHandler(modal) {
 			if (tokenFromAnyField.roomName) roomName = tokenFromAnyField.roomName;
 			if (typeof tokenFromAnyField.password === 'string') password = tokenFromAnyField.password;
 			if (tokenFromAnyField.server) serverInput = tokenFromAnyField.server;
+		}
+		if (!serverInput) {
+			if (window.location.protocol !== 'file:' && window.location.origin) {
+				serverInput = window.location.origin;
+				if (serverField) serverField.value = serverInput;
+			} else {
+				window.addSystemMsg && window.addSystemMsg(t('ui.server_required', 'Enter a server address'));
+				if (serverField) serverField.focus();
+				if (btn) {
+					btn.disabled = false;
+					btn.innerText = t('ui.enter', 'ENTER');
+				}
+				return;
+			}
 		}
 		const datasetMasterKey = modal
 			? (document.getElementById('server-modal')?.getAttribute('data-token-master-key') || '')
@@ -577,7 +593,7 @@ export function generateLoginForm(isModal = false) {
 	const idPrefix = isModal ? '-modal' : '';
 	const options = getServerAutocompleteOptions();
 	return `		<div class="input-group">
-			<input id="server${idPrefix}" type="text" list="server-options${idPrefix}" autocomplete="off" required placeholder="">
+			<input id="server${idPrefix}" type="text" list="server-options${idPrefix}" autocomplete="off" placeholder="">
 			<label for="server${idPrefix}" class="floating-label">${t('ui.server', 'Server')}</label>
 			<datalist id="server-options${idPrefix}">${options.map((item) => `<option value="${escapeHTML(item)}"></option>`).join('')}</datalist>
 		</div>
@@ -611,6 +627,8 @@ export function openLoginModal() {
 	autofillRoomPwd('-modal')
 }
 
+const tokenAutofillBoundInputs = new WeakSet();
+
 function attachServerTokenAutofillListeners(formPrefix = '') {
 	const serverInput = document.getElementById(`server${formPrefix}`);
 	const roomInput = document.getElementById(`roomName${formPrefix}`);
@@ -618,7 +636,8 @@ function attachServerTokenAutofillListeners(formPrefix = '') {
 	const boundAttr = 'data-token-autofill-bound';
 	const masterKeyAttr = 'data-token-master-key';
 	if (!serverInput) return;
-	if (serverInput.getAttribute(boundAttr) === '1') return;
+	if (tokenAutofillBoundInputs.has(serverInput)) return;
+	tokenAutofillBoundInputs.add(serverInput);
 	serverInput.setAttribute(boundAttr, '1');
 	const applyTokenFromValue = () => {
 		const t = String(serverInput.value || '').trim();

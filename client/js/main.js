@@ -62,6 +62,7 @@ import {
 	addMsg,               // 添加普通消息到聊天窗口 / Add a normal message to chat
 	addOtherMsg,          // 添加其他用户消息 / Add message from other users
 	addSystemMsg,         // 添加系统消息 / Add a system message
+	updateFileMessagePreview,
 	setupImagePreview,    // 设置图片预览功能 / Setup image preview
 	setupInputPlaceholder, // 设置输入框的占位提示 / Setup placeholder for input box
 	autoGrowInput         // 自动调整输入框高度 / Auto adjust input height
@@ -87,7 +88,8 @@ let sendQueue = Promise.resolve();
 
 function runSend(task) {
 	const next = sendQueue.then(() => task()).catch((error) => {
-		this.logEvent('runSend', error, 'error')
+		console.error('Failed to send message:', error);
+		return false;
 	});
 	sendQueue = next;
 	return next;
@@ -103,10 +105,10 @@ function createMessageSecurityStamp() {
 	};
 }
 
-async function sendPrivateMessage(rd, messageType, payload, fallbackKey) {
-	const targetClient = rd?.chat?.channel?.[rd.privateChatTargetId];
+async function sendPrivateMessage(rd, messageType, payload, fallbackKey, targetClientId = rd?.privateChatTargetId, targetName = rd?.privateChatTargetName) {
+	const targetClient = rd?.chat?.channel?.[targetClientId];
 	if (!targetClient?.shared) {
-		addSystemMsg(`${t(fallbackKey)} ${rd.privateChatTargetName}. ${t('system.user_not_connected')}`);
+		addSystemMsg(`${t(fallbackKey)} ${targetName || ''}. ${t('system.user_not_connected')}`);
 		return false;
 	}
 	const clientMessagePayload = {
@@ -118,11 +120,13 @@ async function sendPrivateMessage(rd, messageType, payload, fallbackKey) {
 	const serverRelayPayload = {
 		a: 'c',
 		p: encryptedClientMessage,
-		c: rd.privateChatTargetId
+		c: targetClientId,
+		f: messageType.startsWith('file_volume') || messageType.startsWith('file_complete')
+			? { id: payload.fileId, kind: messageType.startsWith('file_volume') ? 'volume' : 'complete' }
+			: undefined
 	};
 	const encryptedMessageForServer = await rd.chat.encryptServerMessage(serverRelayPayload, rd.chat.serverShared);
-	rd.chat.sendMessage(encryptedMessageForServer);
-	return true;
+	return rd.chat.sendMessage(encryptedMessageForServer);
 }
 
 // 设置全局配置参数
@@ -144,6 +148,7 @@ injectStaticIcons(document);
 Object.assign(window, {
   addSystemMsg,
   addOtherMsg,
+  updateFileMessagePreview,
   joinRoom,
   notifyMessage,
   setupEmojiPicker,
@@ -283,28 +288,35 @@ window.addEventListener('DOMContentLoaded', () => {
 		attachBtnSelector: '.chat-attach-btn', // 附件按钮选择器 / Attach button selector
 		fileInputSelector: '.new-message-wrapper input[type="file"]', // 文件输入框选择器 / File input selector
 		onSend: async (message) => {
-			const rd = roomsData[activeRoomIndex];
-			if (rd && rd.chat) {
-				await runSend(async () => {
-					const userName = rd.myUserName || '';
-					const msgWithUser = { ...message, userName };
-					if (rd.privateChatTargetId) {
-						const sent = await sendPrivateMessage(rd, msgWithUser.type + '_private', msgWithUser, 'system.private_file_failed');
-						if (sent && msgWithUser.type === 'file_start') {
-							addMsg(msgWithUser, false, 'file_private');
-						}
-						} else {
-							// 公共频道文件发送
-							// Send file to public channel
-							await rd.chat.sendChannelMessage(msgWithUser.type, msgWithUser);
-						
-						// 添加到自己的聊天记录
-						if (msgWithUser.type === 'file_start') {
-							addMsg(msgWithUser, false, 'file');
-						}
-					}
-				});
-			}		}
+			const transfer = window.fileTransfers?.get(message.fileId);
+			if (message.type === 'file_start' && transfer) {
+				const activeRoom = roomsData[activeRoomIndex];
+				transfer.sendContext = activeRoom?.chat ? {
+					rd: activeRoom,
+					targetClientId: activeRoom.privateChatTargetId || null,
+					targetName: activeRoom.privateChatTargetName || ''
+				} : null;
+			}
+			const sendContext = transfer?.sendContext;
+			const rd = sendContext?.rd || roomsData[activeRoomIndex];
+			if (!rd?.chat) return false;
+			return runSend(async () => {
+				const userName = rd.myUserName || '';
+				const msgWithUser = { ...message, userName };
+				const targetClientId = sendContext ? sendContext.targetClientId : rd.privateChatTargetId;
+				if (targetClientId) {
+					const targetName = sendContext ? sendContext.targetName : rd.privateChatTargetName;
+					const sent = await sendPrivateMessage(rd, `${msgWithUser.type}_private`, msgWithUser, 'system.private_file_failed', targetClientId, targetName);
+					if (sent && msgWithUser.type === 'file_start') addMsg(msgWithUser, false, 'file_private', null, roomsData.indexOf(rd));
+					if (msgWithUser.type === 'file_complete' && transfer) transfer.sendContext = null;
+					return sent;
+				}
+				const sent = await rd.chat.sendChannelMessage(msgWithUser.type, msgWithUser);
+				if (sent && msgWithUser.type === 'file_start') addMsg(msgWithUser, false, 'file', null, roomsData.indexOf(rd));
+				if (msgWithUser.type === 'file_complete' && transfer) transfer.sendContext = null;
+				return sent;
+			});
+		}
 	});
 
 

@@ -1,5 +1,9 @@
 import { generateClientId, encryptMessage, decryptMessage, logEvent, isString, isObject, getTime } from './utils.js';
 
+const MAX_CANCELLED_FILE_IDS = 4096;
+const MAX_CANCELLED_RECIPIENTS_PER_FILE = 4096;
+const MAX_CANCELLED_FILE_RECIPIENTS = 16384;
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -26,6 +30,8 @@ export default {
 export class ChatRoom {  constructor(state, env) {
     this.state = state;
     this.env = env;
+    this.cancelledFileRecipients = new Map();
+    this.cancelledFileRecipientCount = 0;
     
     // Use objects like original server.js instead of Maps
     this.clients = Object.create(null);
@@ -350,6 +356,8 @@ export class ChatRoom {  constructor(state, env) {
         this.handleClientMessage(clientId, decrypted);
       } else if (action === 'w') {
         this.handleChannelMessage(clientId, decrypted);
+      } else if (action === 'x') {
+        this.handleFileDeliveryCancel(clientId, decrypted.p);
       }
 
     } catch (error) {
@@ -391,6 +399,8 @@ export class ChatRoom {  constructor(state, env) {
     try {
       const channel = senderClient.channel;
       const targetClient = this.clients[decrypted.c];
+	  const fileDelivery = this.getFileDeliveryMetadata(decrypted.f);
+	  if (fileDelivery?.kind === 'volume' && this.isFileDeliveryCancelled(fileDelivery.id, decrypted.c)) return;
 
       if (this.isClientInChannel(targetClient, channel)) {
         const messageObj = {
@@ -417,6 +427,7 @@ export class ChatRoom {  constructor(state, env) {
     
     try {
       const channel = senderClient.channel;
+	  const fileDelivery = this.getFileDeliveryMetadata(decrypted.f);
 
       for (const member of Object.keys(decrypted.p)) {
         const targetClient = this.clients[member];
@@ -424,6 +435,7 @@ export class ChatRoom {  constructor(state, env) {
         if (!isString(payload) || !this.isClientInChannel(targetClient, channel)) {
           continue;
         }
+	    if (fileDelivery?.kind === 'volume' && this.isFileDeliveryCancelled(fileDelivery.id, member)) continue;
         const messageObj = {
           a: 'c',
           p: payload,
@@ -437,6 +449,61 @@ export class ChatRoom {  constructor(state, env) {
     } catch (error) {
       logEvent('message-channel', [clientId, error], 'error');
     }
+  }
+
+  getFileDeliveryMetadata(metadata) {
+    if (!isObject(metadata) || !/^file_[0-9]{10,20}_[a-z0-9]{6,32}$/.test(metadata.id) ||
+        !['volume', 'complete'].includes(metadata.kind)) return null;
+    return metadata;
+  }
+
+  handleFileDeliveryCancel(clientId, fileId) {
+    const client = this.clients[clientId];
+    if (!client?.channel || !/^file_[0-9]{10,20}_[a-z0-9]{6,32}$/.test(fileId)) return;
+    const now = Date.now();
+    let recipients = this.cancelledFileRecipients.get(fileId);
+    if (!recipients) {
+      if (this.cancelledFileRecipients.size >= MAX_CANCELLED_FILE_IDS) {
+        const oldestId = this.cancelledFileRecipients.keys().next().value;
+        this.cancelledFileRecipientCount -= this.cancelledFileRecipients.get(oldestId)?.size || 0;
+        this.cancelledFileRecipients.delete(oldestId);
+      }
+      recipients = new Map();
+      this.cancelledFileRecipients.set(fileId, recipients);
+    }
+    if (recipients.has(clientId)) {
+      recipients.set(clientId, now + 30 * 60 * 1000);
+    } else if (recipients.size < MAX_CANCELLED_RECIPIENTS_PER_FILE) {
+      while (this.cancelledFileRecipientCount >= MAX_CANCELLED_FILE_RECIPIENTS) {
+        const oldestFileId = this.cancelledFileRecipients.keys().next().value;
+        const oldestRecipients = this.cancelledFileRecipients.get(oldestFileId);
+        const oldestRecipientId = oldestRecipients?.keys().next().value;
+        if (oldestRecipientId === undefined) {
+          this.cancelledFileRecipients.delete(oldestFileId);
+          continue;
+        }
+        oldestRecipients.delete(oldestRecipientId);
+        this.cancelledFileRecipientCount--;
+        if (oldestRecipients.size === 0) this.cancelledFileRecipients.delete(oldestFileId);
+      }
+      if (!this.cancelledFileRecipients.has(fileId)) this.cancelledFileRecipients.set(fileId, recipients);
+      recipients.set(clientId, now + 30 * 60 * 1000);
+      this.cancelledFileRecipientCount++;
+    }
+  }
+
+  isFileDeliveryCancelled(fileId, clientId) {
+    const recipients = this.cancelledFileRecipients.get(fileId);
+    if (!recipients) return false;
+    const expiresAt = recipients.get(clientId);
+    if (!expiresAt) return false;
+    if (expiresAt <= Date.now()) {
+      recipients.delete(clientId);
+      this.cancelledFileRecipientCount--;
+      if (recipients.size === 0) this.cancelledFileRecipients.delete(fileId);
+      return false;
+    }
+    return true;
   }
   // Broadcast member list to channel
   broadcastMemberList(channel) {

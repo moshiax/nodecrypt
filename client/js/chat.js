@@ -22,7 +22,8 @@ import {
 	removeClass
 } from './util.dom.js';
 import {
-	getFileDisplayInfo
+	getFileDisplayInfo,
+	cancelFileDownload
 } from './util.file.js';
 import {
 	t
@@ -36,21 +37,16 @@ import { ICONS } from './util.icons.js';
 const youtubeRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]{11})/;
 const canUseYouTubeEmbed = typeof window !== 'undefined' && /^https?:$/.test(window.location.protocol);
 
-function getYouTubeId(text = '') {
-	const match = text.match(youtubeRegex);
-	return match ? match[1] : null;
-}
-
 function renderYouTubePreview(text = '') {
 	if (!getSetting('youtubePreviews')) return '';
-	const id = getYouTubeId(text);
-	if (!id) return '';
+	const match = text.match(youtubeRegex);
+	if (!match) return '';
 
 	if (!canUseYouTubeEmbed) {
 		return ``;
 	}
 
-	return `<div class="youtube-preview"><div class="js-plyr" data-plyr-provider="youtube" data-plyr-embed-id="${id}"></div></div>`;
+	return `<div class="youtube-preview"><div class="js-plyr" data-plyr-provider="youtube" data-plyr-embed-id="${match[1]}"></div></div>`;
 }
 
 function initImagePreviews(root = document) {
@@ -68,12 +64,22 @@ function initImagePreviews(root = document) {
 	});
 }
 
+const plyrInitializedElements = new WeakSet();
+
 function initPlyrPlayers(root = document) {
 	if (!root || !root.querySelectorAll) return;
 	root.querySelectorAll('.js-plyr').forEach((el) => {
-		if (el.dataset.plyrBound === '1') return;
-		new Plyr(el, PLYR_CONFIG);
+		if (plyrInitializedElements.has(el) || el.dataset.plyrBound === '1' || el.plyr || el.closest('.plyr')) return;
+		plyrInitializedElements.add(el);
 		el.dataset.plyrBound = '1';
+		try {
+			new Plyr(el, PLYR_CONFIG);
+		} catch (error) {
+			plyrInitializedElements.delete(el);
+			delete el.dataset.plyrBound;
+			console.warn('Plyr initialization failed:', error);
+			return;
+		}
 	});
 }
 
@@ -81,44 +87,45 @@ function initAudioWaveforms(root = document) {
 	if (!root || !root.querySelectorAll) return;
 	root.querySelectorAll('.file-waveform').forEach((wave) => {
 		if (wave.dataset.waveBound === '1') return;
-		wave.dataset.waveBound = '1';
-		const audio = wave.closest('.file-message')?.querySelector('audio');
+		const fileMessage = wave.closest('.file-message');
+		const audio = fileMessage?.querySelector('audio');
 		if (!audio) return;
+		const fileId = fileMessage.dataset.fileId;
+		const transfer = window.fileTransfers?.get(fileId);
+		wave.dataset.waveBound = '1';
 		const barCount = Math.max(24, Math.floor(wave.clientWidth / 5));
 		wave.innerHTML = Array.from({ length: barCount }, () => '<span class="file-wave-bar"></span>').join('');
 		const bars = Array.from(wave.querySelectorAll('.file-wave-bar'));
-		const src = audio.currentSrc || audio.querySelector('source')?.src || '';
-		const activateBars = (samples = []) => {
-			bars.forEach((bar, idx) => {
-				const amp = samples[idx] ?? 0.2;
-				const h = Math.max(0.18, Math.min(1, amp));
-				bar.style.height = `${Math.round(h * 100)}%`;
-			});
-			};
-			activateBars(new Array(bars.length).fill(0.22));
-			if (!src) return;
-			fetch(src)
-				.then((res) => res.arrayBuffer())
-				.then((buffer) => {
-					const AudioCtx = window.AudioContext || window.webkitAudioContext;
-					if (!AudioCtx) return;
-					const ctx = new AudioCtx();
-					return ctx.decodeAudioData(buffer).then((audioBuffer) => {
-						const channelData = audioBuffer.getChannelData(0);
-						const blockSize = Math.floor(channelData.length / bars.length) || 1;
-						const waveformData = bars.map((_, i) => {
-							const start = i * blockSize;
-							const end = Math.min(start + blockSize, channelData.length);
-							let peak = 0;
-							for (let j = start; j < end; j++) peak = Math.max(peak, Math.abs(channelData[j]));
-							return peak;
-						});
-						const maxPeak = Math.max(...waveformData, 0.0001);
-						activateBars(waveformData.map((v) => v / maxPeak));
-						if (ctx.state !== 'closed') ctx.close();
+		const source = transfer?.blob || transfer?.sourceFile;
+		if (source) {
+			void source.arrayBuffer().then((buffer) => {
+				const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+				if (!AudioContextClass || !wave.isConnected) return;
+				const context = new AudioContextClass();
+				return context.decodeAudioData(buffer).then((decoded) => {
+					if (!wave.isConnected) return;
+					const samplesPerBar = Math.max(1, Math.floor(decoded.length / bars.length));
+					const channelCount = decoded.numberOfChannels;
+					const peaks = [];
+					let maxPeak = 0;
+					bars.forEach((bar, index) => {
+						const start = index * samplesPerBar;
+						const end = Math.min(decoded.length, start + samplesPerBar);
+						let peak = 0;
+						for (let channel = 0; channel < channelCount; channel++) {
+							const samples = decoded.getChannelData(channel);
+							for (let sample = start; sample < end; sample++) peak = Math.max(peak, Math.abs(samples[sample]));
+						}
+						peaks.push(peak);
+						maxPeak = Math.max(maxPeak, peak);
 					});
-				})
-				.catch(() => {});
+					bars.forEach((bar, index) => {
+						const relativePeak = maxPeak ? peaks[index] / maxPeak : 0;
+						bar.style.height = `${Math.max(8, Math.round(Math.sqrt(relativePeak) * 100))}%`;
+					});
+				}).catch((error) => console.warn('Audio waveform decode failed:', error)).finally(() => context.close());
+			}).catch((error) => console.warn('Audio waveform read failed:', error));
+		}
 		const updateWaveProgress = () => {
 			const progress = audio.duration ? (audio.currentTime / audio.duration) : 0;
 			bars.forEach((bar, idx) => {
@@ -206,17 +213,19 @@ function renderSecurityIndicator(securityMeta = null) {
 
 // Add a message to the chat area
 // 添加消息到聊天区域
-export function addMsg(text, isHistory = false, msgType = 'text', timestamp = null) {
+export function addMsg(text, isHistory = false, msgType = 'text', timestamp = null, targetRoomIndex = activeRoomIndex) {
 	let ts = isHistory ? timestamp : (timestamp || Date.now());
 	if (!ts) return;
-	if (!isHistory && activeRoomIndex >= 0) {
-		roomsData[activeRoomIndex].messages.push({
+	if (!isHistory && targetRoomIndex >= 0 && roomsData[targetRoomIndex]) {
+		roomsData[targetRoomIndex].messages.push({
 			type: 'me',
 			text,
 			msgType,
 			timestamp: ts
 		})
-	}	const chatArea = $id('chat-area');
+	}
+	if (targetRoomIndex !== activeRoomIndex) return;
+	const chatArea = $id('chat-area');
 	if (!chatArea) return;
 	let className = 'bubble me' + (msgType.includes('_private') ? ' private-message' : '');
 	if (msgType === 'file' || msgType === 'file_private') className += ' file-bubble';
@@ -227,6 +236,7 @@ export function addMsg(text, isHistory = false, msgType = 'text', timestamp = nu
 	}, `<span class="bubble-content">${contentHtml}</span><span class="bubble-meta">${time}</span>`);
 	chatArea.appendChild(div);
 	initImagePreviews(div);
+	if ((msgType === 'file' || msgType === 'file_private') && text?.fileId) updateFileMessagePreview(text.fileId);
 	initPlyrPlayers(div);
 	initAudioWaveforms(div);
 	chatArea.scrollTop = chatArea.scrollHeight
@@ -289,6 +299,7 @@ export function addOtherMsg(msg, userName = '', avatar = '', isHistory = false, 
 	}
 	chatArea.appendChild(bubbleWrap);
 	initImagePreviews(bubbleWrap);
+	if ((msgType === 'file' || msgType === 'file_private') && msg?.fileId) updateFileMessagePreview(msg.fileId);
 	initPlyrPlayers(bubbleWrap);
 	initAudioWaveforms(bubbleWrap);
 	chatArea.scrollTop = chatArea.scrollHeight
@@ -340,6 +351,13 @@ export function updateChatInputStyle() {
 export function setupImagePreview() {
 	on($id('chat-area'), 'click', function(e) {
 		const target = e.target;
+		const cancelDownloadBtn = target.closest('.file-cancel-download-btn');
+		if (cancelDownloadBtn) {
+			const fileId = cancelDownloadBtn.dataset.fileId || '';
+			roomsData[activeRoomIndex]?.chat?.cancelFileReceive(fileId);
+			cancelFileDownload(fileId);
+			return;
+		}
 		const downloadBtn = target.closest('.file-download-btn');
 		if (downloadBtn) {
 			const fileId = downloadBtn.dataset.fileId || '';
@@ -461,6 +479,8 @@ function renderFileMessage(fileData, isSender) {
 		originalSize,
 		totalVolumes
 	} = fileData;
+	const transfer = window.fileTransfers ? window.fileTransfers.get(fileId) : null;
+	const effectivePreviewData = previewData || transfer?.previewUrl || null;
 	const safeFileId = escapeHTML(typeof fileId === 'string' ? fileId : '');
 	const { displayName, displayMeta, iconHtml } = getFileDisplayInfo({
 		fileName,
@@ -472,14 +492,15 @@ function renderFileMessage(fileData, isSender) {
 	});
 	
 	const safeDisplayName = escapeHTML(displayName);
-	const safePreviewSrc = previewData ? escapeHTML(previewData) : '';
+	const safePreviewSrc = effectivePreviewData ? escapeHTML(effectivePreviewData) : '';
+	const mediaPreload = isSender && transfer?.sourceFile ? 'auto' : 'metadata';
 	let previewHtml = '';
 	if (safePreviewSrc && fileType.startsWith('image/')) {
-		previewHtml = `<img src="${safePreviewSrc}" alt="image preview" class="bubble-img">`;
+		previewHtml = `<img src="${safePreviewSrc}" alt="image preview" class="bubble-img file-media-preview">`;
 	} else if (safePreviewSrc && fileType.startsWith('audio/') && document.createElement('audio').canPlayType(fileType) !== '') {
-		previewHtml = `<audio class="js-plyr" controls preload="metadata"><source src="${safePreviewSrc}" type="${escapeHTML(fileType)}"></audio>`;
+		previewHtml = `<audio class="js-plyr file-media-preview" controls preload="${mediaPreload}"><source src="${safePreviewSrc}" type="${escapeHTML(fileType)}"></audio>`;
 	} else if (safePreviewSrc && fileType.startsWith('video/') && document.createElement('video').canPlayType(fileType) !== '') {
-		previewHtml = `<video class="js-plyr" controls preload="metadata"><source src="${safePreviewSrc}" type="${escapeHTML(fileType)}"></video>`;
+		previewHtml = `<video class="js-plyr file-media-preview" controls preload="${mediaPreload}"><source src="${safePreviewSrc}" type="${escapeHTML(fileType)}"></video>`;
 	}
 	if (previewHtml) {
 		previewHtml = DOMPurify.sanitize(previewHtml, {
@@ -489,7 +510,6 @@ function renderFileMessage(fileData, isSender) {
 	}
 
 	// Check actual file transfer status
-	const transfer = window.fileTransfers ? window.fileTransfers.get(fileId) : null;
 	let statusText = '';
 	let progressWidth = '0%';
 	let downloadBtnStyle = 'display: none;';
@@ -499,7 +519,7 @@ function renderFileMessage(fileData, isSender) {
 		if (transfer.status === 'sending') {
 			const progress = (transfer.sentVolumes / transfer.totalVolumes) * 100;
 			progressWidth = `${progress}%`;
-			statusText = `Sending ${transfer.sentVolumes}/${transfer.totalVolumes}`;
+			statusText = `Uploading ${Math.floor(progress)}% (${transfer.sentVolumes}/${transfer.totalVolumes})`;
 			showProgress = true;
 			} else if (transfer.status === 'receiving') {
 			const progress = (transfer.receivedVolumes.size / transfer.totalVolumes) * 100;
@@ -507,7 +527,10 @@ function renderFileMessage(fileData, isSender) {
 			statusText = `Receiving ${transfer.receivedVolumes.size}/${transfer.totalVolumes}`;
 			showProgress = true;
 			} else if (transfer.status === 'completed') {
-			downloadBtnStyle = 'display: flex;';
+			downloadBtnStyle = isSender ? 'display: none;' : 'display: flex;';
+			} else if (transfer.status === 'cancelled') {
+				statusText = t('file.download_stopped', 'Download stopped');
+				showProgress = true;
 		}	} else if (isSender) {
 		// 发送方历史消息，不显示状态和下载按钮
 		downloadBtnStyle = 'display: flex;';
@@ -538,10 +561,89 @@ function renderFileMessage(fileData, isSender) {
 				<div class="file-progress-bar">
 					<div class="file-progress" style="width: ${progressWidth}"></div>
 				</div>
-				<div class="file-status">${statusText}</div>
+				<div class="file-status-row">
+					<div class="file-status">${statusText}</div>
+					${transfer.status === 'receiving' ? `<button type="button" class="file-cancel-download-btn" data-file-id="${safeFileId}">${t('file.stop_download', 'Stop')}</button>` : ''}
+				</div>
 			</div>` : ''}
 		</div>
 	`;
+}
+
+export function updateFileMessagePreview(fileId) {
+	if (typeof fileId !== 'string' || !/^file_[0-9]{10,20}_[a-z0-9]{6,32}$/.test(fileId)) return;
+	const transfer = window.fileTransfers?.get(fileId);
+	if (!transfer?.previewUrl) return;
+	const fileMessage = document.querySelector(`.file-message[data-file-id="${fileId}"]`);
+	if (!fileMessage) return;
+	const existingMedia = fileMessage.querySelector('.bubble-img, audio, video');
+	if (transfer.sourceFile && existingMedia) {
+		if (existingMedia.tagName === 'IMG') {
+			if (existingMedia.src !== transfer.previewUrl) existingMedia.src = transfer.previewUrl;
+		} else {
+			let source = existingMedia.querySelector('source');
+			if (!source) {
+				source = document.createElement('source');
+				existingMedia.appendChild(source);
+			}
+			if (source.src !== transfer.previewUrl) source.src = transfer.previewUrl;
+			source.type = transfer.fileType;
+			existingMedia.preload = 'auto';
+			if (existingMedia.readyState === 0) existingMedia.load();
+		}
+		existingMedia.classList.add('file-media-preview');
+		initAudioWaveforms(fileMessage);
+		return;
+	}
+	const existingSource = existingMedia?.tagName === 'IMG'
+		? existingMedia.src
+		: (existingMedia?.querySelector('source')?.src || existingMedia?.src || '');
+	if (existingMedia && existingSource === transfer.previewUrl) {
+		existingMedia.classList.add('file-media-preview');
+		if (existingMedia.tagName !== 'IMG' && existingMedia.readyState === 0) existingMedia.load();
+		initAudioWaveforms(fileMessage);
+		return;
+	}
+	const oldPreview = fileMessage.querySelector('.file-media-preview');
+	if (oldPreview) {
+		const oldPlayer = oldPreview.closest('.plyr');
+		if (oldPlayer) {
+			oldPreview.plyr?.destroy();
+			oldPlayer.remove();
+		} else {
+			oldPreview.remove();
+		}
+	}
+	let preview;
+	if (transfer.fileType.startsWith('image/')) {
+		preview = document.createElement('img');
+		preview.alt = 'image preview';
+		preview.className = 'bubble-img file-media-preview';
+		preview.src = transfer.previewUrl;
+	} else if (transfer.fileType.startsWith('audio/')) {
+		preview = document.createElement('audio');
+		preview.className = 'js-plyr file-media-preview';
+		preview.controls = true;
+		preview.preload = 'metadata';
+		const source = document.createElement('source');
+		source.src = transfer.previewUrl;
+		source.type = transfer.fileType;
+		preview.appendChild(source);
+	} else if (transfer.fileType.startsWith('video/')) {
+		preview = document.createElement('video');
+		preview.className = 'js-plyr file-media-preview';
+		preview.controls = true;
+		preview.preload = 'metadata';
+		const source = document.createElement('source');
+		source.src = transfer.previewUrl;
+		source.type = transfer.fileType;
+		preview.appendChild(source);
+	}
+	if (!preview) return;
+	fileMessage.prepend(preview);
+	initImagePreviews(fileMessage);
+	initPlyrPlayers(fileMessage);
+	initAudioWaveforms(fileMessage);
 }
 
 // Automatically adjust the height of the input area
