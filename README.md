@@ -35,7 +35,6 @@ NodeCrypt is a truly end-to-end encrypted chat system that implements a complete
 - **Server Blind Relay**: The server can never decrypt message content, only responsible for encrypted data relay
 - **No Chat History Storage**: The system does not persist chat plaintext/history; message data exists only in runtime memory
 - **End-to-End Encryption**: Messages are encrypted from sender to receiver throughout the entire process; no intermediate node can decrypt them
-- **Forward Secrecy**: Even if keys are compromised, historical messages cannot be decrypted because there are no historical messages at all
 - **Anonymous Communication**: Users do not need to register real identities; supports temporary anonymous chat
 - **Rich Experience**: Support for sending images/files, private chat by clicking user avatar, selectable UI themes and languages
 
