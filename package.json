@@ -9,7 +9,7 @@
     "deploy": " wrangler deploy",
     "publish": " wrangler publish",
     "build:singlefile": "vite build --mode singlefile",
-    "build:client": "npm run build:singlefile && cp dist/index.html nodecrypt-client.html"
+    "build:client": "npm run build:singlefile && node -e \"require('node:fs').copyFileSync('dist/index.html','nodecrypt-client.html')\""
   },
   "repository": {
     "type": "git",
